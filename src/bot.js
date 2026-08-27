@@ -1,224 +1,41 @@
-require('dotenv').config();
+// ═══════════════════════════════════════════════════════════════
+//  ⚡ VORTEX VPN BOT v4.0 — فروش اختصاصی کانفیگ VPN
+// ═══════════════════════════════════════════════════════════════
 
+require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const fetch = require('node-fetch');
 const { handleSupportCommand } = require('./support');
 const db = require('./database');
 
+// ─── Configuration ───
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const CHANNEL_USERNAME = process.env.CHANNEL_USERNAME; // e.g. @your_channel
+const CHANNEL_USERNAME = process.env.CHANNEL_USERNAME;
 const ADMIN_ID = process.env.ADMIN_ID ? Number(process.env.ADMIN_ID) : null;
-
 const ALL_SERVERS_PRICE_20 = Number(process.env.ALL_SERVERS_PRICE_20 || 0);
 const ALL_SERVERS_PRICE_10 = Number(process.env.ALL_SERVERS_PRICE_10 || 0);
 const ALL_SERVERS_PRICE_5 = Number(process.env.ALL_SERVERS_PRICE_5 || 0);
 const CARD_NUMBER = process.env.CARD_NUMBER || '';
-
 const MARZBAN_URL = process.env.MARZBAN_URL || '';
 const MARZBAN_USERNAME = process.env.MARZBAN_USERNAME || '';
 const MARZBAN_PASSWORD = process.env.MARZBAN_PASSWORD || '';
 
-const SUPPORT_WEBAPP_URL = process.env.SUPPORT_WEBAPP_URL || '';
+if (!BOT_TOKEN) { console.error('BOT_TOKEN not set'); process.exit(1); }
 
-if (!BOT_TOKEN) {
-  console.error('BOT_TOKEN is not set in .env file');
-  process.exit(1);
-}
-
-// ----- Marzban API helpers (skeleton, adjust to your panel's API) -----
-
-async function getMarzbanToken() {
-  if (!MARZBAN_URL || !MARZBAN_USERNAME || !MARZBAN_PASSWORD) {
-    return { ok: false, error: 'MARZBAN_URL / MARZBAN_USERNAME / MARZBAN_PASSWORD not set in .env' };
-  }
-
-  try {
-    // Normalize base URL: remove trailing /dashboard (if present) and any trailing slash
-    const baseUrl = MARZBAN_URL.replace(/\/dashboard\/?$/, '').replace(/\/$/, '');
-
-    const tokenUrl = `${baseUrl}/api/admin/token`;
-
-    const res = await fetch(tokenUrl, {
-      method: 'POST',
-      // Marzban admin token endpoint expects form data (OAuth2PasswordRequestForm)
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        username: MARZBAN_USERNAME,
-        password: MARZBAN_PASSWORD,
-      }).toString(),
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      const errorMessage = `Marzban token error: ${res.status} ${text}`;
-      console.error('[Marzban] Token request failed', {
-        url: tokenUrl,
-        status: res.status,
-        body: text,
-      });
-      return { ok: false, error: errorMessage };
-    }
-
-    const data = await res.json();
-    const token = data.access_token || data.token;
-    if (!token) {
-      console.error('[Marzban] Token missing in response', { url: tokenUrl, data });
-      return { ok: false, error: 'Marzban token not found in response. Check /api/admin/token schema.' };
-    }
-
-    return { ok: true, token };
-  } catch (err) {
-    console.error('[Marzban] Token request threw exception', err);
-    return { ok: false, error: `Marzban token request failed: ${err.message || err}` };
-  }
-}
-
-function mapVolumeLabelToGB(volumeLabel) {
-  if (!volumeLabel) return null;
-  if (volumeLabel.includes('20')) return 20;
-  if (volumeLabel.includes('10')) return 10;
-  if (volumeLabel.includes('5')) return 5;
-  return null;
-}
-
-function mapTimeLabelToDays(timeLabel) {
-  if (!timeLabel || timeLabel === 'تعیین نشده' || timeLabel === 'نامحدود') return null;
-  if (timeLabel.includes('30')) return 30;
-  if (timeLabel.includes('15')) return 15;
-  return null;
-}
-
-async function createMarzbanUserFromInvoice(targetUserId, invoice) {
-  const tokenResult = await getMarzbanToken();
-  if (!tokenResult.ok) {
-    return tokenResult;
-  }
-
-  const token = tokenResult.token;
-
-  // Build a username based on "VorteX-<user name>" but normalized to Marzban rules:
-  // 3-32 chars, only a-z, 0-9, and underscores.
-  const rawBase = invoice.userName || String(targetUserId);
-  const baseWithPrefix = `vortex-${rawBase}`;
-  // Normalize: lowercase, replace invalid chars with '_'
-  let username = baseWithPrefix.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-  // Add a small numeric suffix from userId to reduce collisions
-  const suffix = String(targetUserId % 1000);
-  username = `${username}_${suffix}`;
-  // Enforce max length 32
-  if (username.length > 32) {
-    username = username.slice(0, 32);
-  }
-  // Ensure minimum length 3
-  if (username.length < 3) {
-    username = 'vortex_user';
-  }
-
-  const gb = mapVolumeLabelToGB(invoice.volumeLabel);
-  // According to Marzban docs data_limit is in bytes; null or -1 often means unlimited.
-  const dataLimitBytes = gb ? gb * 1024 * 1024 * 1024 : null;
-
-  const days = mapTimeLabelToDays(invoice.timeLabel);
-  // expire expected as Unix timestamp (seconds) in Marzban; null for unlimited.
-  const expire = days
-    ? Math.floor(Date.now() / 1000) + days * 24 * 60 * 60
-    : null;
-
-  // TODO: Adjust payload fields to exactly match your Marzban API schema.
-  const payload = {
-    username,
-    data_limit: dataLimitBytes,
-    expire,
-    // At least one proxy must be defined; VMess is disabled on this server, so use only VLESS
-    proxies: {
-      vless: {},
-    },
-  };
-
-  try {
-    const baseUrl = MARZBAN_URL.replace(/\/dashboard\/?$/, '').replace(/\/$/, '');
-    const userUrl = `${baseUrl}/api/user`;
-
-    const res = await fetch(userUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      const errorMessage = `Marzban create user error: ${res.status} ${text}`;
-      console.error('[Marzban] Create user failed', {
-        url: userUrl,
-        status: res.status,
-        body: text,
-        payload,
-      });
-      return { ok: false, error: errorMessage };
-    }
-
-    const data = await res.json();
-
-    // Try to extract a subscription/config link from common fields
-    let link =
-      data.subscription_url ||
-      (Array.isArray(data.links) ? data.links[0] : null) ||
-      (data.proxies && data.proxies.vless && data.proxies.vless[0] && data.proxies.vless[0].link) ||
-      null;
-
-    // If API returns a relative path or token, normalize to full subscription URL
-    if (link && !/^https?:\/\//i.test(link)) {
-      // If it already starts with /sub or sub, strip that and rebuild
-      const tokenPart = link.replace(/^https?:\/\//i, '').replace(/^.*sub\/?/, '').replace(/^\//, '');
-      link = `${baseUrl}/sub/${tokenPart}`;
-    }
-
-    if (!link) {
-      console.warn('[Marzban] User created but no link found in response', { url: userUrl, data });
-    }
-
-    return { ok: true, link, raw: data };
-  } catch (err) {
-    console.error('[Marzban] Create user request threw exception', err, { payload });
-    return { ok: false, error: `Marzban create user request failed: ${err.message || err}` };
-  }
-}
-
-if (!CHANNEL_USERNAME) {
-  console.error('CHANNEL_USERNAME is not set in .env file');
-  process.exit(1);
-}
-
-// Create the bot in long polling mode
+// ─── Bot ───
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// In-memory storage to mark first-time users during current process lifetime
+// ─── State ───
 const seenUsers = new Set();
-
-// Dynamic channel configuration and membership requirement
 let currentChannelUsername = CHANNEL_USERNAME;
-let membershipRequired = true; // can be toggled by admin
-
-// Track which users have already passed the current membership prompt version
+let membershipRequired = true;
 let membershipPromptVersion = 0;
-const userMembershipPromptVersion = new Map(); // userId -> version
-
-// Simple per-user admin state (e.g., awaiting new channel id, in admin menus)
-// mode can be: 'awaiting_channel_id' | 'admin_panel' | 'membership_config' | null
-const adminStates = new Map(); // userId -> { mode: string | null }
-
-// Per-user invoice state for purchase flow
-// userId -> { serverName, timeLabel, volumeLabel, amount, lastInvoiceMessageId, stage }
+const userMembershipPromptVersion = new Map();
+const adminStates = new Map();
 const userInvoices = new Map();
-
-// Track users who are expected to send a payment receipt
-// userId -> { serverName, amount }
 const awaitingReceipts = new Map();
 
-// ─── Load persisted state from database ───
+// ─── Load DB ───
 db.load();
 const _saved = db.getState();
 for (const uid of Object.keys(_saved.users)) seenUsers.add(Number(uid));
@@ -226,800 +43,703 @@ for (const [uid, data] of Object.entries(_saved.invoices)) userInvoices.set(Numb
 for (const [uid, data] of Object.entries(_saved.awaitingReceipts)) awaitingReceipts.set(Number(uid), data);
 if (_saved.settings.channel) currentChannelUsername = _saved.settings.channel;
 if (_saved.settings.membership !== undefined) membershipRequired = _saved.settings.membership === 'true';
-console.log(`💾 Loaded: ${seenUsers.size} users, ${userInvoices.size} invoices, ${awaitingReceipts.size} receipts`);
+console.log(`💾 Loaded: ${seenUsers.size} users, ${userInvoices.size} invoices`);
 
-// Reload all state from database (used after restore)
 function reloadState() {
   db.load();
   const s = db.getState();
-  seenUsers.clear();
-  userInvoices.clear();
-  awaitingReceipts.clear();
+  seenUsers.clear(); userInvoices.clear(); awaitingReceipts.clear();
   for (const uid of Object.keys(s.users)) seenUsers.add(Number(uid));
   for (const [uid, data] of Object.entries(s.invoices)) userInvoices.set(Number(uid), data);
   for (const [uid, data] of Object.entries(s.awaitingReceipts)) awaitingReceipts.set(Number(uid), data);
   if (s.settings.channel) currentChannelUsername = s.settings.channel;
   if (s.settings.membership !== undefined) membershipRequired = s.settings.membership === 'true';
-  console.log(`🔄 Reloaded: ${seenUsers.size} users, ${userInvoices.size} invoices, ${awaitingReceipts.size} receipts`);
+  console.log(`🔄 Reloaded: ${seenUsers.size} users, ${userInvoices.size} invoices`);
 }
+
+// ═══════════════════════════════════════════
+//  MARZBAN API
+// ═══════════════════════════════════════════
+async function getMarzbanToken() {
+  if (!MARZBAN_URL || !MARZBAN_USERNAME || !MARZBAN_PASSWORD) return { ok: false, error: 'Marzban not configured' };
+  try {
+    const baseUrl = MARZBAN_URL.replace(/\/dashboard\/?$/, '').replace(/\/$/, '');
+    const res = await fetch(`${baseUrl}/api/admin/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ username: MARZBAN_USERNAME, password: MARZBAN_PASSWORD }).toString(),
+    });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    const data = await res.json();
+    return { ok: true, token: data.access_token || data.token };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+async function createMarzbanUserFromInvoice(targetUserId, invoice) {
+  const tokenResult = await getMarzbanToken();
+  if (!tokenResult.ok) return tokenResult;
+  const base = `vortex-${invoice.userName || targetUserId}`.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20);
+  const username = base.length >= 3 ? base : `vx-${targetUserId}`;
+  const volumeGB = invoice.volumeLabel?.includes('20') ? 20 : invoice.volumeLabel?.includes('10') ? 10 : 5;
+  const dataLimit = volumeGB * 1024 * 1024 * 1024;
+  let expireDays = 365;
+  if (invoice.timeLabel?.includes('30')) expireDays = 30;
+  else if (invoice.timeLabel?.includes('15')) expireDays = 15;
+  const expireAt = Math.floor(Date.now() / 1000) + expireDays * 86400;
+  try {
+    const baseUrl = MARZBAN_URL.replace(/\/dashboard\/?$/, '').replace(/\/$/, '');
+    const res = await fetch(`${baseUrl}/api/user`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenResult.token}` },
+      body: JSON.stringify({ username, data_limit: dataLimit, expire: expireAt, note: `Telegram:${targetUserId}` }),
+    });
+    if (!res.ok) { const t = await res.text(); return { ok: false, error: `HTTP ${res.status}: ${t}` }; }
+    const data = await res.json();
+    return { ok: true, username, subscriptionUrl: data.subscription_url, data: data };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// ═══════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════
+function toPersianDigits(n) { return String(n).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]); }
+function toPersianNumber(n) { return toPersianDigits(n.toLocaleString('en-US')); }
+function getPersianDate() { return new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: 'long', day: 'numeric' }); }
+function isAdmin(userId) { return ADMIN_ID && userId === ADMIN_ID; }
 
 async function isUserChannelMember(userId) {
   try {
     const member = await bot.getChatMember(currentChannelUsername, userId);
-    const status = member.status;
-    return ['member', 'administrator', 'creator', 'owner'].includes(status);
-  } catch (err) {
-    console.error('Error checking membership in isUserChannelMember:', err.message || err);
-    // In case of error (e.g., bot not admin), treat as not a member so UI still asks to join
-    return false;
-  }
+    return ['member', 'administrator', 'creator', 'owner'].includes(member.status);
+  } catch { return false; }
 }
 
-function getMainKeyboard(isAdmin) {
-  const keyboard = [];
-
-  // User menu
-  keyboard.push(['خرید']);
-  keyboard.push(['پشتیبانی']);
-
-  // For now, only admin gets management panel button
-  if (isAdmin) {
-    keyboard.push(['پنل مدیریت']);
-  }
-
-  if (keyboard.length === 0) {
-    return undefined;
-  }
-
-  return {
-    keyboard,
-    resize_keyboard: true,
-    one_time_keyboard: false,
-  };
+// ═══════════════════════════════════════════
+//  KEYBOARDS
+// ═══════════════════════════════════════════
+function mainMenuKB(userId) {
+  const rows = [
+    [{ text: '🛒 خرید سرویس' }, { text: '📦 سرویس‌های من' }],
+    [{ text: '👤 حساب کاربری' }, { text: '💬 پشتیبانی' }],
+    [{ text: '🤝 دعوت دوستان' }, { text: '📜 قوانین' }],
+  ];
+  if (isAdmin(userId)) rows.push([{ text: '🛠 پنل مدیریت' }]);
+  return { reply_markup: { keyboard: rows, resize_keyboard: true } };
 }
 
-function getAllServersInvoiceKeyboard(invoice) {
-  const rows = [];
-
-  rows.push(['تعیین زمان', 'تعیین حجم']);
-
-  // If amount is set, show پرداخت button in its own row
-  if (invoice && invoice.amount != null) {
-    rows.push(['پرداخت']);
-  }
-
-  rows.push(['بازگشت']);
-
-  return {
-    keyboard: rows,
-    resize_keyboard: true,
-    one_time_keyboard: false,
-  };
+function backKB() {
+  return { reply_markup: { inline_keyboard: [[{ text: '🔙 بازگشت به منو', callback_data: 'back:menu' }]] } };
 }
 
-function getAdminPanelKeyboard() {
-  return {
-    keyboard: [
-      ['عضویت در کانال'],
-      ['بازگشت'],
+function serverSelectionKB() {
+  return { reply_markup: { inline_keyboard: [
+    [{ text: '🌐 همه سرورها (پیشنهاد ویژه)', callback_data: 'srv:all' }],
+    [{ text: '🔙 بازگشت', callback_data: 'back:menu' }],
+  ]}};
+}
+
+function volumeKB() {
+  return { reply_markup: { inline_keyboard: [
+    [
+      { text: `📦 ۲۰ گیگ — ${toPersianNumber(ALL_SERVERS_PRICE_20)} ت`, callback_data: 'vol:20' },
     ],
-    resize_keyboard: true,
-    one_time_keyboard: false,
-  };
-}
-
-function getMembershipConfigKeyboard() {
-  return {
-    keyboard: [
-      ['تغییر آیدی کانال', 'ریست عضویت ها'],
-      ['فعال', 'غیر فعال'],
-      ['بازگشت'],
+    [
+      { text: `📦 ۱۰ گیگ — ${toPersianNumber(ALL_SERVERS_PRICE_10)} ت`, callback_data: 'vol:10' },
     ],
-    resize_keyboard: true,
-    one_time_keyboard: false,
-  };
+    [
+      { text: `📦 ۵ گیگ — ${toPersianNumber(ALL_SERVERS_PRICE_5)} ت`, callback_data: 'vol:5' },
+    ],
+    [{ text: '🔙 بازگشت', callback_data: 'back:servers' }],
+  ]}};
 }
 
+function timeKB() {
+  return { reply_markup: { inline_keyboard: [
+    [{ text: '♾ نامحدود (پیشنهاد ویژه)', callback_data: 'time:unlimited' }],
+    [{ text: '📅 ۳۰ روزه', callback_data: 'time:30' }],
+    [{ text: '📅 ۱۵ روزه', callback_data: 'time:15' }],
+    [{ text: '🔙 بازگشت', callback_data: 'back:volumes' }],
+  ]}};
+}
+
+function confirmKB() {
+  return { reply_markup: { inline_keyboard: [
+    [{ text: '✅ تأیید و پرداخت', callback_data: 'inv:confirm' }],
+    [{ text: '❌ انصراف', callback_data: 'inv:cancel' }],
+  ]}};
+}
+
+function accountKB() {
+  return { reply_markup: { inline_keyboard: [
+    [{ text: '📊 جزئیات سفارشات', callback_data: 'acc:orders' }],
+    [{ text: '🎟 کد دعوت من', callback_data: 'acc:referral' }],
+    [{ text: '🔙 بازگشت به منو', callback_data: 'back:menu' }],
+  ]}};
+}
+
+function adminPanelKB() {
+  return { reply_markup: { inline_keyboard: [
+    [{ text: '📡 تنظیم کانال', callback_data: 'adm:channel' }, { text: '👥 عضویت اجباری', callback_data: 'adm:membership' }],
+    [{ text: '💰 قیمت‌ها', callback_data: 'adm:prices' }, { text: '💳 شماره کارت', callback_data: 'adm:card' }],
+    [{ text: '📋 لیست کاربران', callback_data: 'adm:users' }],
+    [{ text: '🔙 بازگشت', callback_data: 'back:menu' }],
+  ]}};
+}
+
+// ═══════════════════════════════════════════
+//  /start HANDLER
+// ═══════════════════════════════════════════
 bot.onText(/\/start/, async (msg) => {
-  const chatId = msg.chat.id;
   const userId = msg.from.id;
+  const firstName = msg.from.first_name || '';
+  const username = msg.from.username || '';
 
   const isFirstTime = !seenUsers.has(userId);
   if (isFirstTime) {
     seenUsers.add(userId);
-    db.saveUser(userId, msg.from.username, msg.from.first_name);
+    db.saveUser(userId, username, firstName);
+    db.saveSetting(`user_${userId}_joined`, new Date().toISOString());
   }
 
-  const isAdmin = ADMIN_ID && userId === ADMIN_ID;
-  // Always check membership first when it is required
-  const alreadyMember = membershipRequired ? await isUserChannelMember(userId) : true;
-
-  if (alreadyMember) {
-    const welcomeText = isFirstTime
-      ? 'خوش اومدی به ربات VorteX VPN 👋\n\n✅ عضویتت در کانال تأیید شده و از این به بعد می‌تونی خیلی راحت از داخل ربات سرویس بخری، تمدید کنی و رسید پرداخت بفرستی.\n\nاز دکمه‌های پایین می‌تونی خرید رو شروع کنی یا بعداً هر وقت خواستی دوباره /start بزنی و برگردی به منوی اصلی.'
-      : 'تو الان عضو کانال هستی و می‌تونی از امکانات ربات استفاده کنی ✅\n\nبرای شروع، از دکمه "خرید" پایین استفاده کن و سرور و حجم مورد نظرت رو انتخاب کن.';
-
-    const mainKeyboard = getMainKeyboard(isAdmin);
-    const options = mainKeyboard ? { reply_markup: mainKeyboard } : undefined;
-
-    await bot.sendMessage(chatId, welcomeText, options);
-    return;
-  }
-
-  const membershipText = isFirstTime
-    ? 'برای استفاده از ربات، لطفاً ابتدا در کانال زیر عضو شو و بعد روی دکمه "بررسی عضویت" بزن تا دسترسی‌ات فعال بشه.'
-    : 'برای استفاده از ربات باید عضو کانال باشی. بعد از عضویت، روی دکمه "بررسی عضویت" بزن.';
-
-  const options = {
-    reply_markup: {
-      inline_keyboard: [
-        [
-          {
-            text: 'عضویت در کانال 📢',
-            url: `https://t.me/${currentChannelUsername.replace('@', '')}`,
-          },
-        ],
-        [
-          {
-            text: 'بررسی عضویت ✅',
-            callback_data: 'check_membership',
-          },
-        ],
-      ],
-    },
-  };
-
-  await bot.sendMessage(chatId, membershipText, options);
-});
-
-// Clear all in-memory state for this user so the bot behaves like first use again
-bot.onText(/\/clear/, async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-
-  seenUsers.delete(userId);
-  userMembershipPromptVersion.delete(userId);
-  userInvoices.delete(userId);
-  awaitingReceipts.delete(userId);
-  adminStates.delete(userId);
-  db.removeInvoice(userId);
-  db.removeAwaitingReceipt(userId);
-
-  await bot.sendMessage(
-    chatId,
-    'همه تنظیمات و وضعیت ربات برای حساب شما ریست شد. می‌تونی دوباره مثل دفعهٔ اول از /start استفاده کنی.'
-  );
-});
-
-bot.on('callback_query', async (query) => {
-  if (!query.data) return;
-
-  const chatId = query.message.chat.id;
-  const userId = query.from.id;
-
-  if (query.data === 'check_membership') {
-    try {
-      const alreadyMember = await isUserChannelMember(userId);
-
-      if (alreadyMember) {
-        await bot.answerCallbackQuery(query.id, {
-          text: 'عضویت شما در کانال تأیید شد ✅',
-          show_alert: false,
-        });
-
-        await bot.sendMessage(chatId, 'شما عضو کانال هستید. می‌توانید از امکانات ربات استفاده کنید.');
-      } else {
-        await bot.answerCallbackQuery(query.id, {
-          text: 'شما هنوز عضو کانال نیستید. لطفاً ابتدا در کانال عضو شوید.',
-          show_alert: true,
-        });
-      }
-    } catch (err) {
-      const message = err && err.message ? String(err.message) : String(err);
-      console.error('Error checking membership:', message);
-
-      // If query is too old or invalid, do not try to answer it again
-      if (message.includes('query is too old') || message.includes('query ID is invalid')) {
-        return;
-      }
-
-      try {
-        await bot.answerCallbackQuery(query.id, {
-          text: 'خطا در بررسی عضویت. بعداً دوباره تلاش کنید.',
-          show_alert: true,
-        });
-      } catch (answerErr) {
-        // Ignore secondary errors from answerCallbackQuery to avoid crashing the bot
-        console.error('Error answering callback after membership error:', answerErr.message || answerErr);
-      }
-    }
-  }
-
-  // User pressed inline button to send payment receipt for "همه سرورها"
-  if (query.data === 'send_receipt_all_servers') {
-    const invoice = userInvoices.get(userId);
-
-    // Only proceed if we have an invoice with amount
-    if (!invoice || invoice.amount == null) {
-      try {
-        await bot.answerCallbackQuery(query.id, {
-          text: 'ابتدا فاکتور و مبلغ باید مشخص شود.',
-          show_alert: true,
-        });
-      } catch (e) {}
-      return;
-    }
-
-    awaitingReceipts.set(userId, {
-      serverName: invoice.serverName,
-      amount: invoice.amount,
-    });
-    db.saveAwaitingReceipt(userId, { serverName: invoice.serverName, amount: invoice.amount });
-
-    try {
-      await bot.answerCallbackQuery(query.id, {
-        text: 'لطفاً رسید پرداخت را به صورت عکس ارسال کن (فقط عکس).',
-        show_alert: true,
-      });
-    } catch (e) {
-      // ignore
-    }
-
-    await bot.sendMessage(
-      chatId,
-      'لطفاً اون رسیدی که پرداخت کردی رو به صورت عکس برای من بفرست.\nفقط عکس بفرست عزیز 🌟'
-    );
-
-    return;
-  }
-
-  // Admin approval / rejection of receipts for "همه سرورها"
-  if (query.data && query.data.startsWith('confirm_receipt_all_')) {
-    const parts = query.data.split('_');
-    const targetUserId = Number(parts[parts.length - 1]);
-
-    try {
-      await bot.answerCallbackQuery(query.id, { text: 'رسید تأیید شد ✅', show_alert: false });
-    } catch (e) {}
-
-    await bot.sendMessage(
-      targetUserId,
-      'کاربر عزیز، رسیدی که فرستادی دریافت و تأیید شد ✅\nدر حال آماده‌سازی کانفیگ سرور هستیم؛ معمولاً حدود ۱ دقیقه طول می‌کشه، لطفاً کمی صبر کن.'
-    );
-
-    // Try to create Marzban user based on the invoice
-    const invoice = userInvoices.get(targetUserId);
-    if (invoice) {
-      const result = await createMarzbanUserFromInvoice(targetUserId, invoice);
-
-      if (result.ok) {
-        if (result.link) {
-          // Delay sending config link by ~1 minute so it doesn't arrive immediately
-          setTimeout(() => {
-            bot
-              .sendMessage(
-                targetUserId,
-                'لینک کانفیگ سرور شما آماده شد:\n' + result.link
-              )
-              .catch((err) => {
-                console.error('[Telegram] Failed to send config link after delay', err);
-              });
-          }, 60 * 1000);
-        } else {
-          // No link in response; notify admin for manual follow-up
-          if (ADMIN_ID) {
-            await bot.sendMessage(
-              ADMIN_ID,
-              'هشدار: کاربر تأیید شد اما لینک کانفیگ در پاسخ Marzban پیدا نشد. لطفاً پاسخ API را بررسی کن.'
-            );
-          }
-        }
-      } else if (ADMIN_ID) {
-        await bot.sendMessage(
-          ADMIN_ID,
-          'خطا در ساخت کاربر در مرزبان پس از تأیید رسید:\n' + (result.error || 'Unknown error')
+  if (membershipRequired) {
+    const alreadyMember = await isUserChannelMember(userId);
+    if (!alreadyMember) {
+      const v = membershipPromptVersion;
+      if (userMembershipPromptVersion.get(userId) !== v) {
+        userMembershipPromptVersion.set(userId, v);
+        await bot.sendMessage(userId,
+          `⚡ VorteX VPN\n\n` +
+          `برای استفاده از ربات، ابتدا عضو کانال زیر بشو:\n\n` +
+          `📢 ${currentChannelUsername}\n\n` +
+          `بعد از عضویت، دکمه «عضو شدم ✅» رو بزنید.`,
+          { reply_markup: { inline_keyboard: [
+            [{ text: '📢 عضویت در کانال', url: `https://t.me/${currentChannelUsername.replace('@', '')}` }],
+            [{ text: '✅ عضو شدم', callback_data: 'check_membership' }],
+          ]}}
         );
       }
+      return;
     }
-
-    return;
   }
 
-  if (query.data && query.data.startsWith('reject_receipt_all_')) {
-    const parts = query.data.split('_');
-    const targetUserId = Number(parts[parts.length - 1]);
+  const welcomeText = isFirstTime
+    ? `⚡ <b>VorteX VPN</b>\n\n` +
+      `سلام <b>${firstName}</b> عزیز 👋\n\n` +
+      `به خانواده VorteX خوش اومدی!\n\n` +
+      `🔥 <b>چرا VorteX؟</b>\n` +
+      `• سرورهای پرسرعت و پایدار\n` +
+      `• پشتیبانی ۲۴ ساعته\n` +
+      `• تنوع در حجم و مدت زمان\n` +
+      `• قیمت مناسب و پرداخت آسان\n\n` +
+      `از منوی پایین شروع کن 👇`
+    : `⚡ <b>VorteX VPN</b>\n\n` +
+      `خوش برگشتی <b>${firstName}</b>! 🎉\n\n` +
+      `از منوی پایین می‌تونی خرید کنی یا سرویست رو مدیریت کنی 👇`;
 
-    try {
-      await bot.answerCallbackQuery(query.id, { text: 'رسید رد شد ❌', show_alert: false });
-    } catch (e) {}
-
-    await bot.sendMessage(
-      targetUserId,
-      'کاربر عزیز، رسید پرداختت تأیید نشد. لطفاً در صورت نیاز با پشتیبانی در ارتباط باش یا مجدداً رسید صحیح را ارسال کن.'
-    );
-
-    return;
-  }
+  await bot.sendMessage(userId, welcomeText, { parse_mode: 'HTML', ...mainMenuKB(userId) });
 });
 
-// Handle incoming receipt photos from users
-bot.on('photo', async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-
-  const pending = awaitingReceipts.get(userId);
-  if (!pending) {
-    return; // not expecting a receipt from this user
-  }
-
-  // Stop awaiting further receipts for now
-  awaitingReceipts.delete(userId);
-  db.removeAwaitingReceipt(userId);
-
-  const userName = msg.from.first_name || 'کاربر';
-  const amountText = `${pending.amount.toLocaleString('fa-IR')} 💰`;
-
-  // Photo info (use highest resolution)
-  const photos = msg.photo || [];
-  const photo = photos[photos.length - 1];
-  if (!photo) {
-    return;
-  }
-
-  // Message for the user
-  await bot.sendMessage(
-    chatId,
-    'کاربر عزیز ' +
-      userName +
-      '\n____________________________________\n' +
-      'رسیدی که فرستادی دریافت شدش ✅\n' +
-      'ممکنه که بین ۴ تا ۱۵ دقیقه طول بکشه تا رسیدت تأیید بشه، یکم صبر کن!\n' +
-      '____________________________________'
-  );
-
-  // Notify admin with the receipt and inline buttons
-  if (ADMIN_ID) {
-    const adminIntroText =
-      'ادمین عزیز، یک رسید جدید دریافت شد.\n' +
-      `کاربر: ${userName}\n` +
-      `سرور: ${pending.serverName}\n` +
-      `مبلغ: ${amountText}\n` +
-      'این رسید رو بررسی کن و در صورت تأیید، دکمه مناسب رو بزن.';
-
-    await bot.sendMessage(ADMIN_ID, adminIntroText);
-
-    await bot.sendPhoto(ADMIN_ID, photo.file_id, {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            {
-              text: 'تایید رسید ',
-              callback_data: `confirm_receipt_all_${userId}`,
-            },
-            {
-              text: 'رد رسید ',
-              callback_data: `reject_receipt_all_${userId}`,
-            },
-          ],
-        ],
-      },
-    });
-  }
-});
-
+// ═══════════════════════════════════════════
+//  MESSAGE HANDLER
+// ═══════════════════════════════════════════
 bot.on('message', async (msg) => {
-  if (!msg.text) return;
-
+  if (msg.from?.is_bot) return;
+  const userId = msg.from?.id;
   const chatId = msg.chat.id;
-  const userId = msg.from.id;
-  const text = msg.text.trim();
+  const text = msg.text;
+  if (!userId || !text) return;
 
-   // Debug: log incoming text to help diagnose button labels
-   console.log('Incoming text message:', { userId, text });
+  // ─── Receipt Photo ───
+  if (msg.photo && awaitingReceipts.has(userId)) {
+    const receiptData = awaitingReceipts.get(userId);
+    awaitingReceipts.delete(userId);
+    db.removeAwaitingReceipt(userId);
 
-  const isAdmin = ADMIN_ID && userId === ADMIN_ID;
+    const adminChatId = ADMIN_ID;
+    if (!adminChatId) return bot.sendMessage(chatId, '⚠️ ادمین تنظیم نشده. با پشتیبانی تماس بگیرید.');
 
-  // Handle admin state for changing channel id
-  const state = adminStates.get(userId);
-  if (isAdmin && state && state.mode === 'awaiting_channel_id') {
-    // Treat this message as new channel username
-    let newChannel = text;
-    if (!newChannel.startsWith('@')) {
-      newChannel = '@' + newChannel;
+    const caption =
+      `📬 <b>رسید جدید</b>\n` +
+      `━━━━━━━━━━━━━━━\n` +
+      `👤 کاربر: <code>${userId}</code>\n` +
+      `📛 نام: ${msg.from.first_name || '-'}\n` +
+      `🖥 سرور: ${receiptData.serverName}\n` +
+      `💰 مبلغ: ${toPersianNumber(receiptData.amount)} تومان\n` +
+      `━━━━━━━━━━━━━━━`;
+
+    await bot.sendPhoto(adminChatId, msg.photo[msg.photo.length - 1].file_id, {
+      caption, parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: [
+        [
+          { text: '✅ تأیید', callback_data: `adm:approve:${userId}` },
+          { text: '❌ رد', callback_data: `adm:reject:${userId}` },
+        ],
+      ]},
+    });
+
+    await bot.sendMessage(chatId,
+      `✅ رسید شما دریافت شد!\n\n` +
+      `📦 سرویس: ${receiptData.serverName}\n` +
+      `💰 مبلغ: ${toPersianNumber(receiptData.amount)} تومان\n\n` +
+      `⏳ منتظر بررسی ادمین باشید.\n` +
+      `پس از تأیید، کانفیگ VPN برایتان ارسال می‌شود.`,
+      mainMenuKB(userId)
+    );
+    return;
+  }
+
+  // ─── Admin States ───
+  if (isAdmin(userId)) {
+    const st = adminStates.get(userId);
+
+    if (st?.mode === 'awaiting_channel_id') {
+      const newChannel = text.trim();
+      if (!newChannel.startsWith('@') && !newChannel.startsWith('https://t.me/')) {
+        return bot.sendMessage(chatId, '⚠️ فرمت صحیح: @channel_name یا https://t.me/channel_name');
+      }
+      currentChannelUsername = newChannel.startsWith('@') ? newChannel : '@' + newChannel.split('/').pop();
+      db.saveSetting('channel', currentChannelUsername);
+      adminStates.set(userId, { mode: null });
+      return bot.sendMessage(chatId, `✅ کانال به <b>${currentChannelUsername}</b> تغییر کرد.`, { parse_mode: 'HTML', ...adminPanelKB() });
     }
 
-    currentChannelUsername = newChannel;
-    db.saveSetting('channel', newChannel);
-    adminStates.set(userId, { mode: null });
+    if (st?.mode === 'editing_price_20') {
+      const price = Number(text);
+      if (!price || price <= 0) return bot.sendMessage(chatId, '⚠️ یک عدد صحیح وارد کنید.');
+      db.saveSetting('price_20', price);
+      adminStates.set(userId, { mode: null });
+      return bot.sendMessage(chatId, `✅ قیمت ۲۰ گیگ: ${toPersianNumber(price)} تومان`, adminPanelKB());
+    }
+    if (st?.mode === 'editing_price_10') {
+      const price = Number(text);
+      if (!price || price <= 0) return bot.sendMessage(chatId, '⚠️ یک عدد صحیح وارد کنید.');
+      db.saveSetting('price_10', price);
+      adminStates.set(userId, { mode: null });
+      return bot.sendMessage(chatId, `✅ قیمت ۱۰ گیگ: ${toPersianNumber(price)} تومان`, adminPanelKB());
+    }
+    if (st?.mode === 'editing_price_5') {
+      const price = Number(text);
+      if (!price || price <= 0) return bot.sendMessage(chatId, '⚠️ یک عدد صحیح وارد کنید.');
+      db.saveSetting('price_5', price);
+      adminStates.set(userId, { mode: null });
+      return bot.sendMessage(chatId, `✅ قیمت ۵ گیگ: ${toPersianNumber(price)} تومان`, adminPanelKB());
+    }
+    if (st?.mode === 'editing_card') {
+      const card = text.trim();
+      db.saveSetting('card', card);
+      adminStates.set(userId, { mode: null });
+      return bot.sendMessage(chatId, `✅ شماره کارت: ${card}`, adminPanelKB());
+    }
+  }
 
-    await bot.sendMessage(
-      chatId,
-      `آیدی کانال با موفقیت به ${currentChannelUsername} تغییر کرد.`,
-      { reply_markup: getMembershipConfigKeyboard() }
+  // ─── Main Menu ───
+  if (text === '🛒 خرید سرویس') {
+    return bot.sendMessage(chatId,
+      `⚡ <b>خرید سرویس VPN</b>\n\n` +
+      `از بین سرورهای زیر انتخاب کنید:`,
+      { parse_mode: 'HTML', ...serverSelectionKB() }
     );
-
-    return;
   }
 
-  // User command: خرید (works for both admin and non-admin)
-  if (text === 'خرید') {
-    await bot.sendMessage(
-      chatId,
-      'لطفاً برای خرید کردن از یکی از سرورهای زیر استفاده کنید.',
-      {
-        reply_markup: {
-          keyboard: [['همه سرور ها'], ['بازگشت']],
-          resize_keyboard: true,
-          one_time_keyboard: false,
-        },
-      }
+  if (text === '📦 سرویس‌های من') {
+    const invoice = userInvoices.get(userId);
+    if (invoice) {
+      return bot.sendMessage(chatId,
+        `📦 <b>سرویس در حال پردازش</b>\n\n` +
+        `🖥 سرور: ${invoice.serverName}\n` +
+        `📦 حجم: ${invoice.volumeLabel}\n` +
+        `⏰ مدت: ${invoice.timeLabel}\n` +
+        `💰 مبلغ: ${invoice.amount ? toPersianNumber(invoice.amount) + ' تومان' : '—'}\n` +
+        `📋 وضعیت: ${invoice.stage === 'receipt_sent' ? '⏳ در انتظار تأیید' : '📝 در حال تکمیل'}`,
+        mainMenuKB(userId)
+      );
+    }
+    // Check Marzban for active configs
+    let marzbanInfo = '';
+    if (MARZBAN_URL && MARZBAN_USERNAME) {
+      try {
+        const tk = await getMarzbanToken();
+        if (tk.ok) {
+          const base = MARZBAN_URL.replace(/\/dashboard\/?$/, '').replace(/\/$/, '');
+          const r = await fetch(`${base}/api/admin/user?username=vortex-${msg.from.username || userId}`, {
+            headers: { Authorization: `Bearer ${tk.token}` }
+          });
+          if (r.ok) {
+            const u = await r.json();
+            if (u.username) {
+              const dl = u.data_limit ? (u.data_limit / (1024**3)).toFixed(1) : '∞';
+              const ul = u.used_traffic ? (u.used_traffic / (1024**3)).toFixed(1) : '0';
+              const exp = u.expire ? new Date(u.expire * 1000).toLocaleDateString('fa-IR') : '∞';
+              marzbanInfo = `\n\n🟢 <b>سرویس فعال:</b>\n` +
+                `📦 ${ul} / ${dl} گیگ\n` +
+                `⏰ انقضا: ${exp}\n` +
+                (u.subscription_url ? `🔗 <a href="${u.subscription_url}">لینک اشتراک</a>` : '');
+            }
+          }
+        }
+      } catch {}
+    }
+    return bot.sendMessage(chatId,
+      `📦 <b>سرویس‌های من</b>\n\n` +
+      (marzbanInfo || '❌ سرویس فعالی ندارید.\n\nبرای خرید از منوی «🛒 خرید سرویس» استفاده کنید.'),
+      { parse_mode: 'HTML', ...mainMenuKB(userId) }
     );
-
-    return;
   }
 
-  // User command: پشتیبانی
-  if (text === 'پشتیبانی') {
-    await handleSupportCommand(bot, chatId);
-    return;
+  if (text === '👤 حساب کاربری') {
+    const joinedAt = db.getState().settings[`user_${userId}_joined`];
+    const orderCount = userInvoices.has(userId) ? 1 : 0;
+    const pending = awaitingReceipts.has(userId) ? 1 : 0;
+
+    return bot.sendMessage(chatId,
+      `⚡ <b>حساب کاربری</b>\n` +
+      `━━━━━━━━━━━━━━━━━━\n\n` +
+      `👤 <b>نام:</b> ${msg.from.first_name || '-'}\n` +
+      `📛 <b>یوزرنیم:</b> ${msg.from.username ? '@' + msg.from.username : '—'}\n` +
+      `🆔 <b>آیدی:</b> <code>${userId}</code>\n` +
+      `📅 <b>عضویت:</b> ${joinedAt ? new Date(joinedAt).toLocaleDateString('fa-IR') : getPersianDate()}\n\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `📊 <b>آمار حساب</b>\n` +
+      `━━━━━━━━━━━━━━━━━━\n\n` +
+      `📦 کل سفارشات: ${orderCount}\n` +
+      `⏳ در انتظار تأیید: ${pending}\n` +
+      `🎟 کد دعوت: <code>VX-${userId}</code>`,
+      { parse_mode: 'HTML', ...accountKB() }
+    );
   }
 
-  // همه سرور ها: start invoice flow for this server
-  if (text === 'همه سرور ها') {
-    const userName = msg.from.first_name || 'کاربر';
+  if (text === '💬 پشتیبانی') {
+    return handleSupportCommand(bot, chatId);
+  }
 
-    // Initialize invoice state for this user
+  if (text === '🤝 دعوت دوستان') {
+    return bot.sendMessage(chatId,
+      `🤝 <b>دعوت از دوستان</b>\n\n` +
+      `با دعوت از دوستان خود می‌تونید از مزایای ویژه بهره‌مند بشید.\n\n` +
+      `🔗 لینک دعوت شما:\n` +
+      `t.me/${bot.options.username}?start=ref_${userId}\n\n` +
+      `هر دوستی که از طریق لینک شما وارد بشه، ثبت می‌شه.`,
+      { parse_mode: 'HTML', ...mainMenuKB(userId) }
+    );
+  }
+
+  if (text === '📜 قوانین') {
+    return bot.sendMessage(chatId,
+      `📜 <b>قوانین و مقررات VorteX VPN</b>\n\n` +
+      `۱. 🚫 استفاده از سرویس برای اعمال غیرقانونی ممنوع است\n` +
+      `۲. 📵 اشتراک‌گذاری کانفیگ با دیگران ممنوع است\n` +
+      `۳. 🔄 ریفراند پس از فعال‌سازی کانفیگ امکان‌پذیر نیست\n` +
+      `۴. ⏰ اعتبار سرویس از زمان فعال‌سازی محاسبه می‌شود\n` +
+      `۵. 💬 پشتیبانی: ساعت ۹ صبح تا ۱۲ شب\n` +
+      `۶. 📦 حجم مصرفی از سرور اصلی چک می‌شود\n\n` +
+      `⚡ با استفاده از سرویس، این قوانین رو می‌پذیرید.`,
+      { parse_mode: 'HTML', ...mainMenuKB(userId) }
+    );
+  }
+
+  if (text === '🛠 پنل مدیریت' && isAdmin(userId)) {
+    return bot.sendMessage(chatId,
+      `🛠 <b>پنل مدیریت</b>\n\n` +
+      `از بخش‌های زیر می‌تونید ربات رو مدیریت کنید:`,
+      { parse_mode: 'HTML', ...adminPanelKB() }
+    );
+  }
+});
+
+// ═══════════════════════════════════════════
+//  CALLBACK QUERY HANDLER
+// ═══════════════════════════════════════════
+bot.on('callback_query', async (query) => {
+  const userId = query.from.id;
+  const chatId = query.message?.chat.id;
+  const data = query.data;
+  if (!chatId || !data) return;
+
+  // ─── Membership Check ───
+  if (data === 'check_membership') {
+    const isMember = await isUserChannelMember(userId);
+    if (isMember) {
+      await bot.answerCallbackQuery(query.id, { text: '✅ عضویت تأیید شد!' });
+      return bot.sendMessage(chatId,
+        `⚡ <b>VorteX VPN</b>\n\n` +
+        `عضویتت تأیید شد ✅\n\n` +
+        `حالا می‌تونی از ربات استفاده کنی! 👇`,
+        { parse_mode: 'HTML', ...mainMenuKB(userId) }
+      );
+    } else {
+      return bot.answerCallbackQuery(query.id, { text: '❌ هنوز عضو کانال نشدید!', show_alert: true });
+    }
+  }
+
+  // ─── Back Navigation ───
+  if (data === 'back:menu') {
+    await bot.answerCallbackQuery(query.id);
+    return bot.editMessageText(
+      `⚡ <b>VorteX VPN</b>\n\n` + `از منوی پایین استفاده کن 👇`,
+      { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', ...mainMenuKB(userId) }
+    );
+  }
+
+  if (data === 'back:servers') {
+    await bot.answerCallbackQuery(query.id);
+    return bot.editMessageText(
+      `⚡ <b>خرید سرویس VPN</b>\n\n` + `از بین سرورهای زیر انتخاب کنید:`,
+      { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', ...serverSelectionKB() }
+    );
+  }
+
+  if (data === 'back:volumes') {
+    await bot.answerCallbackQuery(query.id);
+    return bot.editMessageText(
+      `⚡ <b>انتخاب حجم</b>\n\n` + `حجم مورد نظر رو انتخاب کنید:`,
+      { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', ...volumeKB() }
+    );
+  }
+
+  // ─── Buy Flow ───
+  if (data === 'srv:all') {
+    await bot.answerCallbackQuery(query.id);
+    return bot.editMessageText(
+      `⚡ <b>انتخاب حجم</b>\n\n` + `حجم اینترنت مورد نظرتون رو انتخاب کنید:`,
+      { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', ...volumeKB() }
+    );
+  }
+
+  if (data.startsWith('vol:')) {
+    await bot.answerCallbackQuery(query.id);
+    const vol = data.split(':')[1];
+    const volLabel = vol === '20' ? '۲۰ گیگ' : vol === '10' ? '۱۰ گیگ' : '۵ گیگ';
+    const price = vol === '20' ? ALL_SERVERS_PRICE_20 : vol === '10' ? ALL_SERVERS_PRICE_10 : ALL_SERVERS_PRICE_5;
     userInvoices.set(userId, {
-      serverName: 'همه سرورها',
-      userName,
-      timeLabel: 'تعیین نشده',
-      volumeLabel: 'تعیین نشده',
-      amount: null,
-      lastInvoiceMessageId: null,
-      stage: 'invoice',
+      serverName: 'همه سرورها', userName: query.from.first_name,
+      volumeLabel: volLabel, timeLabel: 'تعیین نشده', amount: price,
+      lastInvoiceMessageId: null, stage: 'volume_select',
     });
     db.saveInvoice(userId, userInvoices.get(userId));
+    return bot.editMessageText(
+      `⚡ <b>انتخاب مدت زمان</b>\n\n` +
+      `📦 حجم: ${volLabel}\n` +
+      `💰 قیمت: ${toPersianNumber(price)} تومان\n\n` +
+      `مدت زمان سرویس رو انتخاب کنید:`,
+      { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', ...timeKB() }
+    );
+  }
 
-    // Render initial styled invoice
-    const invoiceText =
-      `<b>🧾 فاکتور انتخاب سرور</b>\n` +
-      `👤 <b>نام کاربر:</b> ${userName}\n` +
-      '━━━━━━━━━━━━━━━━━━\n' +
-      '📦 <b>جزئیات سفارش:</b>\n' +
-      `• <b>اسم سرور:</b> همه سرورها\n` +
-      `• <b>زمان سرور:</b> تعیین نشده ⏱️\n` +
-      `• <b>حجم:</b> تعیین نشده 📦\n` +
-      `• <b>مبلغ:</b> براساس حجم تعیین میشه 💰\n` +
-      '━━━━━━━━━━━━━━━━━━\n' +
-      'از طریق دکمه‌های زیر می‌تونی <b>زمان</b> و <b>حجم</b> سرورت رو تنظیم کنی.';
-
-    const sent = await bot.sendMessage(chatId, invoiceText, {
-      parse_mode: 'HTML',
-      reply_markup: getAllServersInvoiceKeyboard(userInvoices.get(userId)),
-    });
-
+  if (data.startsWith('time:')) {
+    await bot.answerCallbackQuery(query.id);
+    const time = data.split(':')[1];
+    const timeLabel = time === 'unlimited' ? 'نامحدود' : time === '30' ? '۳۰ روزه' : '۱۵ روزه';
     const inv = userInvoices.get(userId);
-    if (inv) {
-      inv.lastInvoiceMessageId = sent.message_id;
-      userInvoices.set(userId, inv);
-      db.saveInvoice(userId, inv);
-    }
+    if (!inv) return;
+    inv.timeLabel = timeLabel;
+    inv.stage = 'invoice';
+    userInvoices.set(userId, inv);
+    db.saveInvoice(userId, inv);
 
-    return;
-  }
+    const invoiceText =
+      `⚡ <b>فاکتور خرید</b>\n` +
+      `━━━━━━━━━━━━━━━━━━\n\n` +
+      `📦 <b>جزئیات سفارش:</b>\n` +
+      `🌐 سرور: ${inv.serverName}\n` +
+      `📦 حجم: ${inv.volumeLabel}\n` +
+      `⏰ مدت: ${timeLabel}\n\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `💰 <b>مبلغ قابل پرداخت:</b>\n` +
+      `💳 ${toPersianNumber(inv.amount)} تومان\n\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `💳 <b>شماره کارت:</b>\n` +
+      `<code>${CARD_NUMBER}</code>\n\n` +
+      `⚠️ پس از پرداخت، روی «تأیید و پرداخت» بزنید و رسید رو بفرستید.`;
 
-  // Handle invoice-related actions for all servers ("همه سرورها", "آلمان 1", "آلمان 2")
-  const currentInvoice = userInvoices.get(userId);
-
-  async function sendUpdatedAllServersInvoice() {
-    if (!currentInvoice) return;
-
-    const userName = msg.from.first_name || 'کاربر';
-
-    const amountText =
-      currentInvoice.amount == null
-        ? 'براساس حجم تعیین میشه 💰'
-        : `${currentInvoice.amount.toLocaleString('fa-IR')} 💰`; // format number
-
-    const textBody =
-      '📦 <b>جزئیات سفارش:</b>\n' +
-      `• <b>اسم سرور:</b> ${currentInvoice.serverName}\n` +
-      `• <b>زمان سرور:</b> ${currentInvoice.timeLabel} ⏱️\n` +
-      `• <b>حجم:</b> ${currentInvoice.volumeLabel} 📦\n` +
-      `• <b>مبلغ:</b> ${amountText}\n` +
-      '━━━━━━━━━━━━━━━━━━\n' +
-      'از طریق دکمه‌های زیر می‌تونی <b>زمان</b> و <b>حجم</b> سرورت رو تنظیم کنی.';
-
-    const header = `<b>🧾 فاکتور انتخاب سرور</b>\n👤 <b>نام کاربر:</b> ${userName}\n━━━━━━━━━━━━━━━━━━\n`;
-
-    // Try to delete previous invoice message
-    if (currentInvoice.lastInvoiceMessageId) {
-      try {
-        await bot.deleteMessage(chatId, currentInvoice.lastInvoiceMessageId);
-      } catch (e) {
-        // ignore delete errors
-      }
-    }
-
-    const sent = await bot.sendMessage(chatId, header + textBody, {
-      parse_mode: 'HTML',
-      reply_markup: getAllServersInvoiceKeyboard(currentInvoice),
+    return bot.editMessageText(invoiceText, {
+      chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', ...confirmKB()
     });
-
-    currentInvoice.lastInvoiceMessageId = sent.message_id;
-    currentInvoice.stage = 'invoice';
-    userInvoices.set(userId, currentInvoice);
-    db.saveInvoice(userId, currentInvoice);
   }
 
-  if (currentInvoice && currentInvoice.serverName === 'همه سرورها') {
-    if (text === 'تعیین زمان') {
-      await bot.sendMessage(chatId, 'لطفاً زمانی که می‌خوای رو بگو:', {
-        reply_markup: {
-          keyboard: [['نامحدود'], ['30 روزه', '15 روزه'], ['بازگشت']],
-          resize_keyboard: true,
-          one_time_keyboard: false,
-        },
-      });
+  // ─── Invoice Confirm/Cancel ───
+  if (data === 'inv:confirm') {
+    await bot.answerCallbackQuery(query.id);
+    const inv = userInvoices.get(userId);
+    if (!inv) return;
+    inv.stage = 'receipt_sent';
+    userInvoices.set(userId, inv);
+    db.saveInvoice(userId, inv);
 
-      return;
+    awaitingReceipts.set(userId, { serverName: inv.serverName, amount: inv.amount });
+    db.saveAwaitingReceipt(userId, awaitingReceipts.get(userId));
+
+    return bot.editMessageText(
+      `⚡ <b>ارسال رسید پرداخت</b>\n` +
+      `━━━━━━━━━━━━━━━━━━\n\n` +
+      `💳 شماره کارت:\n` +
+      `<code>${CARD_NUMBER}</code>\n\n` +
+      `💰 مبلغ: <b>${toPersianNumber(inv.amount)} تومان</b>\n\n` +
+      `━━━━━━━━━━━━━━━━━━\n\n` +
+      `📸 حالا یک عکس از رسید پرداخت بفرستید.\n` +
+      `پس از بررسی ادمین، کانفیگ VPN برایتان ارسال می‌شود.`,
+      { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML' }
+    );
+  }
+
+  if (data === 'inv:cancel') {
+    await bot.answerCallbackQuery(query.id, { text: '❌ خرید لغو شد' });
+    userInvoices.delete(userId);
+    db.removeInvoice(userId);
+    return bot.editMessageText(
+      `❌ <b>خرید لغو شد</b>\n\n` + `هر وقت خواستی دوباره شروع کن 👇`,
+      { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', ...mainMenuKB(userId) }
+    );
+  }
+
+  // ─── Account ───
+  if (data === 'acc:orders') {
+    await bot.answerCallbackQuery(query.id);
+    const inv = userInvoices.get(userId);
+    let info = inv
+      ? `📦 <b>سفارش اخیر:</b>\n\n` +
+        `🖥 سرور: ${inv.serverName}\n` +
+        `📦 حجم: ${inv.volumeLabel}\n` +
+        `⏰ مدت: ${inv.timeLabel}\n` +
+        `💰 مبلغ: ${inv.amount ? toPersianNumber(inv.amount) + ' تومان' : '—'}\n` +
+        `📋 وضعیت: ${inv.stage === 'receipt_sent' ? '⏳ در انتظار تأیید' : '📝 در حال تکمیل'}`
+      : '📭 سفارش ثبت‌شده‌ای ندارید.';
+    return bot.sendMessage(chatId, info, { parse_mode: 'HTML', ...mainMenuKB(userId) });
+  }
+
+  if (data === 'acc:referral') {
+    await bot.answerCallbackQuery(query.id);
+    return bot.sendMessage(chatId,
+      `🎟 <b>کد دعوت شما:</b>\n\n` +
+      `<code>VX-${userId}</code>\n\n` +
+      `این کد رو با دوستانتون به اشتراک بذارید.`,
+      { parse_mode: 'HTML', ...mainMenuKB(userId) }
+    );
+  }
+
+  // ─── Admin Panel ───
+  if (isAdmin(userId)) {
+    if (data === 'adm:channel') {
+      await bot.answerCallbackQuery(query.id);
+      adminStates.set(userId, { mode: 'awaiting_channel_id' });
+      return bot.sendMessage(chatId,
+        `📡 <b>تنظیم کانال</b>\n\n` +
+        `آیدی کانال جدید رو بفرستید:\n` +
+        `فرمت: <code>@channel_name</code>`,
+        { parse_mode: 'HTML', ...backKB() }
+      );
     }
 
-    if (text === 'نامحدود' || text === '30 روزه' || text === '15 روزه') {
-      currentInvoice.timeLabel = text;
-      await sendUpdatedAllServersInvoice();
-      return;
+    if (data === 'adm:membership') {
+      await bot.answerCallbackQuery(query.id);
+      membershipRequired = !membershipRequired;
+      db.saveSetting('membership', String(membershipRequired));
+      return bot.sendMessage(chatId,
+        `👥 <b>عضویت اجباری</b>\n\n` +
+        `وضعیت فعلی: ${membershipRequired ? '✅ فعال' : '❌ غیرفعال'}\n\n` +
+        `برای تغییر دوباره دکمه رو بزنید.`,
+        { parse_mode: 'HTML', ...adminPanelKB() }
+      );
     }
 
-    if (text === 'پرداخت') {
-      if (currentInvoice.amount == null) {
-        await bot.sendMessage(chatId, 'اول حجم رو انتخاب کن تا مبلغ نهایی مشخص بشه، بعد می‌تونی پرداخت رو انجام بدی.');
-        return;
-      }
-
-      const amountText = `${currentInvoice.amount.toLocaleString('fa-IR')} 💰`;
-      const cardText = CARD_NUMBER || '---';
-
-      const payText =
-        `مبلغی که باید پرداخت کنی (${amountText}) رو به شماره کارت زیر واریز کن!
-
-شماره کارت: <code>${cardText}</code>`;
-
-      await bot.sendMessage(chatId, payText, {
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: 'فرستادن رسید پرداخت',
-                callback_data: 'send_receipt_all_servers',
-              },
-            ],
-          ],
-        },
-      });
-
-      return;
+    if (data === 'adm:prices') {
+      await bot.answerCallbackQuery(query.id);
+      adminStates.set(userId, { mode: 'editing_price_20' });
+      return bot.sendMessage(chatId,
+        `💰 <b>تنظیم قیمت‌ها</b>\n\n` +
+        `قیمت ۲۰ گیگ (تومان) رو وارد کنید:\n` +
+        `(قیمت فعلی: ${toPersianNumber(ALL_SERVERS_PRICE_20)} ت)`,
+        { parse_mode: 'HTML', ...backKB() }
+      );
     }
 
-    if (text === 'تعیین حجم') {
-      await bot.sendMessage(
-        chatId,
-        'از طریق دکمه‌های زیر حجمی که می‌خوای رو انتخاب کن.',
-        {
-          reply_markup: {
-            keyboard: [['20 گیگ', '10 گیگ', '5 گیگ'], ['بازگشت']],
-            resize_keyboard: true,
-            one_time_keyboard: false,
-          },
+    if (data === 'adm:card') {
+      await bot.answerCallbackQuery(query.id);
+      adminStates.set(userId, { mode: 'editing_card' });
+      return bot.sendMessage(chatId,
+        `💳 <b>شماره کارت</b>\n\n` +
+        `شماره کارت جدید رو بفرستید:`,
+        { parse_mode: 'HTML', ...backKB() }
+      );
+    }
+
+    if (data === 'adm:users') {
+      await bot.answerCallbackQuery(query.id);
+      const userCount = seenUsers.size;
+      return bot.sendMessage(chatId,
+        `📋 <b>لیست کاربران</b>\n\n` +
+        `تعداد کل: ${userCount} نفر\n\n` +
+        `آخرین کاربران:\n` +
+        [...seenUsers].slice(-5).map(id => `• <code>${id}</code>`).join('\n'),
+        { parse_mode: 'HTML', ...adminPanelKB() }
+      );
+    }
+
+    // ─── Admin Approve/Reject ───
+    if (data.startsWith('adm:approve:')) {
+      const targetUserId = Number(data.split(':')[2]);
+      await bot.answerCallbackQuery(query.id, { text: '✅ تأیید شد' });
+
+      const inv = userInvoices.get(targetUserId) || awaitingReceipts.get(targetUserId) || { serverName: 'نامشخص', amount: 0, volumeLabel: '۲۰ گیگ', timeLabel: 'نامحدود', userName: 'کاربر' };
+
+      const marzbanResult = await createMarzbanUserFromInvoice(targetUserId, inv);
+
+      let replyToUser = `✅ <b>پرداخت شما تأیید شد!</b>\n━━━━━━━━━━━━━━━━━━\n\n`;
+      if (marzbanResult.ok) {
+        replyToUser += `🟢 <b>کانفیگ VPN شما فعال شد:</b>\n\n` +
+          `📦 حجم: ${inv.volumeLabel}\n` +
+          `⏰ مدت: ${inv.timeLabel}\n\n`;
+        if (marzbanResult.subscriptionUrl) {
+          replyToUser += `🔗 <b>لینک اشتراک:</b>\n<code>${marzbanResult.subscriptionUrl}</code>\n\n`;
+          replyToUser += `👆 این لینک رو در اپلیکیشن VPN کپی و وارد کنید.\n\n`;
         }
-      );
-
-      currentInvoice.stage = 'volume_select';
-      userInvoices.set(userId, currentInvoice);
-      db.saveInvoice(userId, currentInvoice);
-
-      return;
-    }
-
-    if (text === '20 گیگ' || text === '10 گیگ' || text === '5 گیگ') {
-      currentInvoice.volumeLabel = text;
-
-      if (text === '20 گیگ') {
-        currentInvoice.amount = ALL_SERVERS_PRICE_20 || null;
-      } else if (text === '10 گیگ') {
-        currentInvoice.amount = ALL_SERVERS_PRICE_10 || null;
-      } else if (text === '5 گیگ') {
-        currentInvoice.amount = ALL_SERVERS_PRICE_5 || null;
+        replyToUser += `⚠️ لینک اشتراک رو با کسی به اشتراک نذارید!\n`;
+      } else {
+        replyToUser += `⚠️ پرداخت تأیید شد اما فعال‌سازی خودکار با خطا مواجه شد.\n` +
+          `لطفاً با پشتیبانی تماس بگیرید.\n`;
       }
 
-      await sendUpdatedAllServersInvoice();
-      return;
-    }
+      try {
+        await bot.sendMessage(targetUserId, replyToUser, { parse_mode: 'HTML', ...mainMenuKB(targetUserId) });
+      } catch {}
 
-    if (text === 'بازگشت') {
-      // Back inside purchase flow
-      if (currentInvoice.stage === 'time_select' || currentInvoice.stage === 'volume_select') {
-        // Go back to invoice view
-        await sendUpdatedAllServersInvoice();
-        return;
-      }
-
-      if (currentInvoice.stage === 'invoice') {
-        // Leave invoice flow and go back to server list under "خرید"
-        userInvoices.delete(userId);
-        db.removeInvoice(userId);
-
-        await bot.sendMessage(
-          chatId,
-          'بازگشت به لیست سرورها.',
-          {
-            reply_markup: {
-              keyboard: [['همه سرور ها'], ['آلمان 1', 'آلمان 2'], ['بازگشت']],
-              resize_keyboard: true,
-              one_time_keyboard: false,
-            },
-          }
+      // Update admin message
+      try {
+        await bot.editMessageText(
+          `✅ <b>تأیید شد</b>\n\n` +
+          `👤 کاربر: <code>${targetUserId}</code>\n` +
+          `💰 مبلغ: ${toPersianNumber(inv.amount)} تومان\n` +
+          `📦 حجم: ${inv.volumeLabel}\n` +
+          `${marzbanResult.ok ? '🟢 مرزبان: فعال شد' : '⚠️ مرزبان: خطا'}`,
+          { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML' }
         );
-
-        return;
-      }
-    }
-  }
-
-  // Global back button from server list (when not inside an invoice flow)
-  if (text === 'بازگشت' && !currentInvoice) {
-    const mainKeyboard = getMainKeyboard(isAdmin);
-    await bot.sendMessage(chatId, 'بازگشت به منوی اصلی.', {
-      reply_markup: mainKeyboard,
-    });
-
-    return;
-  }
-
-  // Admin command to notify a user that their config/plan has expired and offer renewal
-  if (isAdmin && text.startsWith('/notify_expire')) {
-    const parts = text.split(/\s+/);
-    if (parts.length < 2) {
-      await bot.sendMessage(chatId, 'استفاده صحیح: /notify_expire <TELEGRAM_ID>');
+      } catch {}
       return;
     }
 
-    const targetUserId = Number(parts[1]);
-    if (!targetUserId || Number.isNaN(targetUserId)) {
-      await bot.sendMessage(chatId, 'آیدی کاربر معتبر نیست. لطفاً یک عدد صحیح وارد کن.');
+    if (data.startsWith('adm:reject:')) {
+      const targetUserId = Number(data.split(':')[2]);
+      await bot.answerCallbackQuery(query.id, { text: '❌ رد شد' });
+      try {
+        await bot.sendMessage(targetUserId, `❌ <b>پرداخت شما رد شد.</b>\n\nاگر فکر می‌کنید اشتباهه با پشتیبانی تماس بگیرید.`, { parse_mode: 'HTML', ...mainMenuKB(targetUserId) });
+      } catch {}
+      try {
+        await bot.editMessageText(
+          `❌ <b>رد شد</b>\n\n👤 کاربر: <code>${targetUserId}</code>`,
+          { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML' }
+        );
+      } catch {}
       return;
     }
-
-    const invoice = userInvoices.get(targetUserId);
-    if (!invoice || invoice.serverName !== 'همه سرورها') {
-      await bot.sendMessage(
-        chatId,
-        'برای این کاربر فاکتور "همه سرورها" ذخیره نشده است. ابتدا باید یک خرید اولیه برای او انجام شده باشد.'
-      );
-      return;
-    }
-
-    await bot.sendMessage(
-      targetUserId,
-      'کاربر عزیز، سرویس/کانفیگت به پایان رسیده (اتمام زمان یا حجم). اگر می‌خوای همون سرویس رو تمدید کنی، روی دکمه زیر بزن.',
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: 'تمدید همین کانفیگ 🔁',
-                callback_data: `renew_all_${targetUserId}`,
-              },
-            ],
-          ],
-        },
-      }
-    );
-
-    await bot.sendMessage(chatId, `اعلان اتمام سرویس برای کاربر ${targetUserId} ارسال شد.`);
-
-    return;
-  }
-
-  // Non-admins don't handle admin panel related commands
-  if (!isAdmin) {
-    return;
-  }
-
-  if (text === 'پنل مدیریت') {
-    adminStates.set(userId, { mode: 'admin_panel' });
-
-    await bot.sendMessage(chatId, 'پنل مدیریت:', {
-      reply_markup: getAdminPanelKeyboard(),
-    });
-
-    return;
-  }
-
-  if (text === 'عضویت در کانال') {
-    adminStates.set(userId, { mode: 'membership_config' });
-
-    await bot.sendMessage(
-      chatId,
-      'از طریق دکمه‌های زیر می‌توانید عضویت در کانال را برای ربات تنظیم کنید.',
-      { reply_markup: getMembershipConfigKeyboard() }
-    );
-
-    return;
-  }
-
-  if (text === 'تغییر آیدی کانال') {
-    adminStates.set(userId, { mode: 'awaiting_channel_id' });
-
-    await bot.sendMessage(chatId, 'لطفاً آیدی کانال را ارسال کنید (مثال: @MyChannel).');
-
-    return;
-  }
-
-  if (text === 'فعال') {
-    membershipRequired = true;
-    db.saveSetting('membership', 'true');
-    await bot.sendMessage(chatId, 'شرط عضویت در کانال فعال شد.');
-    return;
-  }
-
-  if (text === 'غیر فعال') {
-    membershipRequired = false;
-    db.saveSetting('membership', 'false');
-    await bot.sendMessage(chatId, 'شرط عضویت در کانال غیر فعال شد.');
-    return;
-  }
-
-  if (text === 'ریست عضویت ها') {
-    membershipPromptVersion += 1;
-    userMembershipPromptVersion.clear();
-
-    await bot.sendMessage(
-      chatId,
-      'وضعیت عضویت همه کاربران ریست شد. از این پس، برای همه کاربران در اولین /start بعدی دوباره پیام عضویت ارسال می‌شود.',
-      { reply_markup: getMembershipConfigKeyboard() }
-    );
-
-    return;
-  }
-
-  if (text === 'بازگشت') {
-    const currentState = adminStates.get(userId) || { mode: null };
-
-    // If admin is in membership config, go back to main admin panel
-    if (currentState.mode === 'membership_config') {
-      adminStates.set(userId, { mode: 'admin_panel' });
-
-      await bot.sendMessage(chatId, 'بازگشت به پنل مدیریت.', {
-        reply_markup: getAdminPanelKeyboard(),
-      });
-
-      return;
-    }
-
-    // If admin is in admin panel (or unknown), go back to main user menu
-    adminStates.set(userId, { mode: null });
-
-    await bot.sendMessage(chatId, 'بازگشت به منوی اصلی.', {
-      reply_markup: getMainKeyboard(true),
-    });
-
-    return;
   }
 });
 
-console.log('Telegram bot is running...');
+// ═══════════════════════════════════════════
+console.log('⚡ VorteX VPN Bot is running...');
+// ═══════════════════════════════════════════
 
-// === Web Panel Integration ===
 module.exports = {
-  bot,
-  seenUsers,
-  userInvoices,
-  awaitingReceipts,
+  bot, seenUsers, userInvoices, awaitingReceipts,
   getChannelUsername: () => currentChannelUsername,
   getMembershipRequired: () => membershipRequired,
-  getMarzbanToken,
-  createMarzbanUserFromInvoice,
-  reloadState,
+  getMarzbanToken, createMarzbanUserFromInvoice, reloadState,
 };
