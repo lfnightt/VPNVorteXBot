@@ -100,15 +100,17 @@ function layout(title, activePage, bodyHtml) {
     .sb::before{content:'';position:absolute;top:0;left:0;right:0;height:180px;background:radial-gradient(ellipse at top right,rgba(108,92,231,.1),transparent 70%);pointer-events:none;border-radius:20px 20px 0 0}
     .sb::after{content:'';position:absolute;bottom:0;left:0;right:0;height:120px;background:radial-gradient(ellipse at bottom left,rgba(168,85,247,.06),transparent 70%);pointer-events:none;border-radius:0 0 20px 20px}
     .sb-hd{padding:24px 20px 18px;border-bottom:1px solid rgba(108,92,231,.08);position:relative;z-index:1}
-    .sb-nav{flex:1;padding:14px 10px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;position:relative;z-index:1;direction:ltr}
-    .sb-nav>*{direction:rtl}
-    .sb-nav::-webkit-scrollbar{width:4px}
-    .sb-nav::-webkit-scrollbar-track{background:transparent;margin:8px 0}
-    .sb-nav::-webkit-scrollbar-thumb{background:rgba(108,92,231,.25);border-radius:10px}
-    .sb-nav::-webkit-scrollbar-thumb:hover{background:rgba(108,92,231,.4)}
+    .sb-nav{flex:1;padding:14px 10px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;position:relative;z-index:1}
+    .sb-nav::-webkit-scrollbar{width:3px}
+    .sb-nav::-webkit-scrollbar-thumb{background:rgba(108,92,231,.2);border-radius:10px}
     .sb-ft{padding:14px 10px;border-top:1px solid rgba(108,92,231,.08);position:relative;z-index:1}
 
-    .main{flex:1;margin-right:calc(var(--sb) + 24px);padding:24px;min-height:100vh;min-height:100dvh}
+    .main{flex:1;margin-right:calc(var(--sb) + 24px);padding:24px;min-height:100vh;min-height:100dvh;direction:ltr;overflow-y:auto}
+    .main>*{direction:rtl}
+    .main::-webkit-scrollbar{width:5px}
+    .main::-webkit-scrollbar-track{background:transparent;margin:8px 0}
+    .main::-webkit-scrollbar-thumb{background:rgba(108,92,231,.2);border-radius:10px}
+    .main::-webkit-scrollbar-thumb:hover{background:rgba(108,92,231,.35)}
 
     /* Bottom Nav */
     .bn{display:none;position:fixed;bottom:0;left:0;right:0;height:var(--bn);background:rgba(13,13,24,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);z-index:100;padding:0 8px;padding-bottom:env(safe-area-inset-bottom,0)}
