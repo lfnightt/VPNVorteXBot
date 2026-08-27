@@ -3,6 +3,7 @@ require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const fetch = require('node-fetch');
 const { handleSupportCommand } = require('./support');
+const db = require('./database');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const CHANNEL_USERNAME = process.env.CHANNEL_USERNAME; // e.g. @your_channel
@@ -217,6 +218,16 @@ const userInvoices = new Map();
 // userId -> { serverName, amount }
 const awaitingReceipts = new Map();
 
+// ─── Load persisted state from database ───
+db.init();
+const _saved = db.loadState();
+for (const uid of _saved.users) seenUsers.add(uid);
+for (const [uid, data] of Object.entries(_saved.invoices)) userInvoices.set(Number(uid), data);
+for (const [uid, data] of Object.entries(_saved.awaitingReceipts)) awaitingReceipts.set(Number(uid), data);
+if (_saved.settings.channel) currentChannelUsername = _saved.settings.channel;
+if (_saved.settings.membership !== undefined) membershipRequired = _saved.settings.membership === 'true';
+console.log(`💾 Loaded: ${seenUsers.size} users, ${userInvoices.size} invoices, ${awaitingReceipts.size} receipts`);
+
 async function isUserChannelMember(userId) {
   try {
     const member = await bot.getChatMember(currentChannelUsername, userId);
@@ -301,6 +312,7 @@ bot.onText(/\/start/, async (msg) => {
   const isFirstTime = !seenUsers.has(userId);
   if (isFirstTime) {
     seenUsers.add(userId);
+    db.saveUser(userId, msg.from.username, msg.from.first_name);
   }
 
   const isAdmin = ADMIN_ID && userId === ADMIN_ID;
@@ -355,6 +367,8 @@ bot.onText(/\/clear/, async (msg) => {
   userInvoices.delete(userId);
   awaitingReceipts.delete(userId);
   adminStates.delete(userId);
+  db.removeInvoice(userId);
+  db.removeAwaitingReceipt(userId);
 
   await bot.sendMessage(
     chatId,
@@ -425,6 +439,7 @@ bot.on('callback_query', async (query) => {
       serverName: invoice.serverName,
       amount: invoice.amount,
     });
+    db.saveAwaitingReceipt(userId, { serverName: invoice.serverName, amount: invoice.amount });
 
     try {
       await bot.answerCallbackQuery(query.id, {
@@ -524,6 +539,7 @@ bot.on('photo', async (msg) => {
 
   // Stop awaiting further receipts for now
   awaitingReceipts.delete(userId);
+  db.removeAwaitingReceipt(userId);
 
   const userName = msg.from.first_name || 'کاربر';
   const amountText = `${pending.amount.toLocaleString('fa-IR')} 💰`;
@@ -598,6 +614,7 @@ bot.on('message', async (msg) => {
     }
 
     currentChannelUsername = newChannel;
+    db.saveSetting('channel', newChannel);
     adminStates.set(userId, { mode: null });
 
     await bot.sendMessage(
@@ -646,6 +663,7 @@ bot.on('message', async (msg) => {
       lastInvoiceMessageId: null,
       stage: 'invoice',
     });
+    db.saveInvoice(userId, userInvoices.get(userId));
 
     // Render initial styled invoice
     const invoiceText =
@@ -669,6 +687,7 @@ bot.on('message', async (msg) => {
     if (inv) {
       inv.lastInvoiceMessageId = sent.message_id;
       userInvoices.set(userId, inv);
+      db.saveInvoice(userId, inv);
     }
 
     return;
@@ -715,6 +734,7 @@ bot.on('message', async (msg) => {
     currentInvoice.lastInvoiceMessageId = sent.message_id;
     currentInvoice.stage = 'invoice';
     userInvoices.set(userId, currentInvoice);
+    db.saveInvoice(userId, currentInvoice);
   }
 
   if (currentInvoice && currentInvoice.serverName === 'همه سرورها') {
@@ -782,6 +802,7 @@ bot.on('message', async (msg) => {
 
       currentInvoice.stage = 'volume_select';
       userInvoices.set(userId, currentInvoice);
+      db.saveInvoice(userId, currentInvoice);
 
       return;
     }
@@ -812,6 +833,7 @@ bot.on('message', async (msg) => {
       if (currentInvoice.stage === 'invoice') {
         // Leave invoice flow and go back to server list under "خرید"
         userInvoices.delete(userId);
+        db.removeInvoice(userId);
 
         await bot.sendMessage(
           chatId,
@@ -922,12 +944,14 @@ bot.on('message', async (msg) => {
 
   if (text === 'فعال') {
     membershipRequired = true;
+    db.saveSetting('membership', 'true');
     await bot.sendMessage(chatId, 'شرط عضویت در کانال فعال شد.');
     return;
   }
 
   if (text === 'غیر فعال') {
     membershipRequired = false;
+    db.saveSetting('membership', 'false');
     await bot.sendMessage(chatId, 'شرط عضویت در کانال غیر فعال شد.');
     return;
   }
