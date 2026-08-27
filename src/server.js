@@ -40,10 +40,18 @@ const NAV = [
 function layout(title, activePage, bodyHtml) {
   const navHtml = NAV.map(item => {
     const active = activePage === item.href;
-    return `<a href="${item.href}" class="group relative flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-300 ${active ? 'bg-gradient-to-l from-indigo-600/20 to-purple-600/20 text-white shadow-lg shadow-indigo-500/10 border border-indigo-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'}">
-      ${active ? '<span class="absolute right-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full"></span>' : ''}
-      <span class="flex-shrink-0 ${active ? 'text-indigo-400' : 'text-gray-500 group-hover:text-gray-300'}">${item.icon}</span>
-      <span>${item.label}</span>
+    return `
+    <a href="${item.href}" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:14px;font-size:14px;font-weight:500;text-decoration:none;position:relative;transition:all .25s ease;${active
+      ? 'background:linear-gradient(135deg,rgba(108,92,231,.18),rgba(168,85,247,.12));color:#fff;box-shadow:0 4px 20px rgba(108,92,231,.15),inset 0 1px 0 rgba(255,255,255,.05);border:1px solid rgba(108,92,231,.25);'
+      : 'color:#7a7a9a;border:1px solid transparent;'}"
+      onmouseenter="if(!this.classList.contains('nav-active')){this.style.background='rgba(255,255,255,.04)';this.style.color='#c8c8e0';this.style.borderColor='rgba(255,255,255,.06)';}"
+      onmouseleave="if(!this.classList.contains('nav-active')){this.style.background='';this.style.color='#7a7a9a';this.style.borderColor='transparent';}">
+      ${active ? '<span style="position:absolute;right:-12px;top:50%;transform:translateY(-50%);width:4px;height:24px;background:linear-gradient(180deg,#6c5ce7,#a855f7);border-radius:0 4px 4px 0;box-shadow:0 0 12px rgba(108,92,231,.5);"></span>' : ''}
+      <span style="width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .25s ease;${active
+        ? 'background:linear-gradient(135deg,#6c5ce7,#a855f7);color:#fff;box-shadow:0 4px 15px rgba(108,92,231,.4);'
+        : 'background:rgba(255,255,255,.04);color:#5a5a7a;'}">${item.icon}</span>
+      <span style="flex:1">${item.label}</span>
+      ${active ? '<span style="width:6px;height:6px;border-radius:50%;background:#a29bfe;box-shadow:0 0 8px #6c5ce7;"></span>' : ''}
     </a>`;
   }).join('');
 
@@ -88,10 +96,14 @@ function layout(title, activePage, bodyHtml) {
     .app{display:flex;min-height:100vh;min-height:100dvh}
 
     /* Sidebar */
-    .sb{position:fixed;right:0;top:0;width:var(--sb);height:100vh;height:100dvh;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:100;transition:transform .4s cubic-bezier(.16,1,.3,1)}
-    .sb-hd{padding:24px 20px;border-bottom:1px solid var(--border)}
-    .sb-nav{flex:1;padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
-    .sb-ft{padding:12px;border-top:1px solid var(--border)}
+    .sb{position:fixed;right:0;top:0;width:var(--sb);height:100vh;height:100dvh;background:linear-gradient(180deg,#0c0c1a 0%,#0f0f24 50%,#0c0c1a 100%);border-left:1px solid rgba(108,92,231,.1);display:flex;flex-direction:column;z-index:100;transition:transform .4s cubic-bezier(.16,1,.3,1);overflow:hidden}
+    .sb::before{content:'';position:absolute;top:0;left:0;right:0;height:200px;background:radial-gradient(ellipse at top right,rgba(108,92,231,.08),transparent 70%);pointer-events:none}
+    .sb::after{content:'';position:absolute;bottom:0;left:0;right:0;height:200px;background:radial-gradient(ellipse at bottom left,rgba(168,85,247,.05),transparent 70%);pointer-events:none}
+    .sb-hd{padding:24px 20px 20px;border-bottom:1px solid rgba(108,92,231,.08);position:relative;z-index:1}
+    .sb-nav{flex:1;padding:16px 12px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;position:relative;z-index:1}
+    .sb-nav::-webkit-scrollbar{width:3px}
+    .sb-nav::-webkit-scrollbar-thumb{background:rgba(108,92,231,.2);border-radius:10px}
+    .sb-ft{padding:16px 12px;border-top:1px solid rgba(108,92,231,.08);position:relative;z-index:1}
 
     .main{flex:1;margin-right:var(--sb);padding:24px;min-height:100vh;min-height:100dvh}
 
@@ -208,25 +220,47 @@ function layout(title, activePage, bodyHtml) {
   <div class="ov" id="ov" onclick="toggleSb()"></div>
   <div class="app">
     <aside class="sb" id="sb">
+      <!-- Logo -->
       <div class="sb-hd">
         <div style="display:flex;align-items:center;gap:14px;">
-          <div style="width:44px;height:44px;background:linear-gradient(135deg,#6c5ce7,#a855f7);border-radius:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(108,92,231,.4);flex-shrink:0;">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <div style="width:48px;height:48px;background:linear-gradient(135deg,#6c5ce7,#a855f7);border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 24px rgba(108,92,231,.45),0 0 0 3px rgba(108,92,231,.15);flex-shrink:0;position:relative;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            <span style="position:absolute;top:-2px;left:-2px;width:12px;height:12px;background:var(--ok);border-radius:50%;border:2px solid #0c0c1a;"></span>
           </div>
           <div>
-            <div style="font-size:17px;font-weight:800;color:var(--t1);letter-spacing:-.3px;">VorteX</div>
-            <div style="font-size:11px;color:var(--t3);margin-top:2px;">پنل مدیریت ربات</div>
+            <div style="font-size:18px;font-weight:900;background:linear-gradient(135deg,#e8e8ff,#a29bfe);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.5px;">VorteX</div>
+            <div style="font-size:11px;color:#5a5a7a;margin-top:3px;font-weight:500;">پنل مدیریت ربات VPN</div>
           </div>
         </div>
       </div>
+
+      <!-- Section Label -->
+      <div style="padding:20px 20px 8px;font-size:10px;font-weight:700;color:#4a4a6a;text-transform:uppercase;letter-spacing:1.5px;display:flex;align-items:center;gap:8px;">
+        <span>منوی اصلی</span>
+        <span style="flex:1;height:1px;background:linear-gradient(to left,rgba(108,92,231,.15),transparent);"></span>
+      </div>
+
+      <!-- Nav -->
       <nav class="sb-nav">${navHtml}</nav>
+
+      <!-- Footer -->
       <div class="sb-ft">
-        <div style="display:flex;align-items:center;gap:8px;padding:8px 16px;margin-bottom:8px;">
-          <span class="pd" style="width:7px;height:7px;border-radius:50%;background:var(--ok);flex-shrink:0;"></span>
-          <span style="font-size:12px;color:var(--t3);">بات فعال و متصل</span>
+        <!-- Status -->
+        <div style="background:rgba(0,210,160,.06);border:1px solid rgba(0,210,160,.12);border-radius:12px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px;">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok);flex-shrink:0;"></span>
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--ok);">بات فعال</div>
+            <div style="font-size:10px;color:#5a5a7a;margin-top:1px;">متصل و در حال کار</div>
+          </div>
         </div>
-        <a href="/logout" class="group flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium text-gray-500 hover:text-red-400 hover:bg-red-500/5 transition-all border border-transparent hover:border-red-500/10">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+
+        <!-- Logout -->
+        <a href="/logout" style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-radius:12px;font-size:13px;font-weight:500;color:#6a6a8a;text-decoration:none;border:1px solid transparent;transition:all .25s ease;"
+          onmouseenter="this.style.background='rgba(255,107,107,.06)';this.style.color='#ff6b6b';this.style.borderColor='rgba(255,107,107,.12)';"
+          onmouseleave="this.style.background='';this.style.color='#6a6a8a';this.style.borderColor='transparent';">
+          <span style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:rgba(255,107,107,.06);flex-shrink:0;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </span>
           <span>خروج از پنل</span>
         </a>
       </div>
