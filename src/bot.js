@@ -230,6 +230,8 @@ console.log(`💾 Loaded: ${seenUsers.size} users, ${userInvoices.size} invoices
 
 // Reload all state from database (used after restore)
 function reloadState() {
+  // Close old connection and reopen the new database file
+  db.reinit();
   const s = db.loadState();
   seenUsers.clear();
   userInvoices.clear();

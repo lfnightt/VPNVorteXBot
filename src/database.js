@@ -9,6 +9,7 @@ const DB_PATH = path.join(DATA_DIR, 'data.db');
 let db;
 
 function init() {
+  if (db) { try { db.close(); } catch(e) {} }
   db = new Database(DB_PATH);
   db.pragma('journal_mode = WAL');
 
@@ -39,6 +40,18 @@ function init() {
     );
   `);
   console.log('📦 Database initialized:', DB_PATH);
+}
+
+// Close and reopen database (used after restoring a backup file)
+function reinit() {
+  console.log('🔄 Reinitializing database connection...');
+  if (db) {
+    try { db.close(); } catch(e) { console.error('Error closing old db:', e.message); }
+    db = null;
+  }
+  db = new Database(DB_PATH);
+  db.pragma('journal_mode = WAL');
+  console.log('📦 Database reconnected:', DB_PATH);
 }
 
 function loadState() {
@@ -108,7 +121,7 @@ function getAllInvoices() {
 }
 
 module.exports = {
-  init, loadState,
+  init, reinit, loadState,
   saveSetting, saveUser,
   saveInvoice, removeInvoice,
   saveAwaitingReceipt, removeAwaitingReceipt,
