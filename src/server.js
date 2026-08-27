@@ -565,25 +565,37 @@ app.get('/api/stats', auth, (req, res) => {
 });
 
 // ═══ BACKUP / RESTORE ═══
-const DB_PATH = path.join(__dirname, '..', 'data', 'data.db');
+const dbModule = require('./database');
 
 app.get('/api/backup', auth, (req, res) => {
-  if (!fs.existsSync(DB_PATH)) return res.status(404).json({ error: 'دیتابیس پیدا نشد' });
+  const buf = dbModule.getFileBuffer();
+  if (!buf) return res.status(404).json({ error: 'فایل داده پیدا نشد' });
   const date = new Date().toISOString().slice(0,10);
-  res.download(DB_PATH, `vortex-backup-${date}.db`);
+  res.setHeader('Content-Disposition', `attachment; filename="vortex-backup-${date}.json"`);
+  res.setHeader('Content-Type', 'application/json');
+  res.send(buf);
 });
 
 app.post('/api/restore', auth, (req, res) => {
   const chunks = [];
   req.on('data', chunk => chunks.push(chunk));
   req.on('end', () => {
-    const buf = Buffer.concat(chunks);
-    if (buf.length < 100) return res.status(400).json({ error: 'فایل معتبر نیست' });
-    if (fs.existsSync(DB_PATH)) fs.copyFileSync(DB_PATH, DB_PATH + '.backup');
-    fs.writeFileSync(DB_PATH, buf);
-    // Reload state from new database
-    if (botState && botState.reloadState) botState.reloadState();
-    res.json({ message: 'دیتابیس بازیابی شد ✅ اطلاعات بروزرسانی شد.' });
+    try {
+      const buf = Buffer.concat(chunks);
+      const text = buf.toString('utf-8');
+      // Validate JSON
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== 'object') throw new Error('Invalid');
+      // Write file
+      dbModule.writeFileBuffer(buf);
+      // Reload state
+      if (botState && botState.reloadState) botState.reloadState();
+      const userCount = Object.keys(parsed.users || {}).length;
+      const invoiceCount = Object.keys(parsed.invoices || {}).length;
+      res.json({ message: `دیتابیس بازیابی شد ✅ (${userCount} کاربر، ${invoiceCount} سفارش)` });
+    } catch (e) {
+      res.status(400).json({ error: 'فایل معتبر نیست یا JSON نیست' });
+    }
   });
   req.on('error', () => res.status(500).json({ error: 'خطا در آپلود' }));
 });

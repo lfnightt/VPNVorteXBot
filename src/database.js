@@ -1,129 +1,137 @@
-const Database = require('better-sqlite3');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
 
 const DATA_DIR = path.join(__dirname, '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const DB_PATH = path.join(DATA_DIR, 'data.db');
-let db;
+const DB_PATH = path.join(DATA_DIR, 'data.json');
 
-function init() {
-  if (db) { try { db.close(); } catch(e) {} }
-  db = new Database(DB_PATH);
-  db.pragma('journal_mode = WAL');
+// In-memory state
+let state = {
+  users: {},          // userId: { username, firstName }
+  invoices: {},       // userId: { serverName, userName, timeLabel, volumeLabel, amount, lastInvoiceMessageId, stage }
+  awaitingReceipts: {}, // userId: { serverName, amount }
+  settings: {},       // key: value
+};
 
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT
-    );
-    CREATE TABLE IF NOT EXISTS users (
-      user_id INTEGER PRIMARY KEY,
-      username TEXT,
-      first_name TEXT
-    );
-    CREATE TABLE IF NOT EXISTS invoices (
-      user_id INTEGER PRIMARY KEY,
-      server_name TEXT,
-      user_name TEXT,
-      time_label TEXT,
-      volume_label TEXT,
-      amount REAL,
-      last_message_id INTEGER,
-      stage TEXT
-    );
-    CREATE TABLE IF NOT EXISTS awaiting_receipts (
-      user_id INTEGER PRIMARY KEY,
-      server_name TEXT,
-      amount REAL
-    );
-  `);
-  console.log('📦 Database initialized:', DB_PATH);
+// Load from disk
+function load() {
+  try {
+    if (fs.existsSync(DB_PATH)) {
+      const raw = fs.readFileSync(DB_PATH, 'utf-8');
+      const data = JSON.parse(raw);
+      state = { ...state, ...data };
+      const userCount = Object.keys(state.users).length;
+      const invoiceCount = Object.keys(state.invoices).length;
+      const receiptCount = Object.keys(state.awaitingReceipts).length;
+      console.log(`💾 Loaded from JSON: ${userCount} users, ${invoiceCount} invoices, ${receiptCount} receipts`);
+    } else {
+      console.log('💾 No data.json found, starting fresh');
+    }
+  } catch (e) {
+    console.error('❌ Error loading data.json:', e.message);
+  }
 }
 
-// Close and reopen database (used after restoring a backup file)
-function reinit() {
-  console.log('🔄 Reinitializing database connection...');
-  if (db) {
-    try { db.close(); } catch(e) { console.error('Error closing old db:', e.message); }
-    db = null;
+// Save to disk (atomic: write temp then rename)
+function save() {
+  try {
+    const tmpPath = DB_PATH + '.tmp';
+    fs.writeFileSync(tmpPath, JSON.stringify(state, null, 2), 'utf-8');
+    fs.renameSync(tmpPath, DB_PATH);
+  } catch (e) {
+    console.error('❌ Error saving data.json:', e.message);
   }
-  db = new Database(DB_PATH);
-  db.pragma('journal_mode = WAL');
-  console.log('📦 Database reconnected:', DB_PATH);
 }
 
-function loadState() {
-  const settings = {};
-  for (const row of db.prepare('SELECT key, value FROM settings').all()) {
-    settings[row.key] = row.value;
-  }
-
-  const users = db.prepare('SELECT user_id FROM users').all().map(r => r.user_id);
-
-  const invoices = {};
-  for (const row of db.prepare('SELECT * FROM invoices').all()) {
-    invoices[row.user_id] = {
-      serverName: row.server_name,
-      userName: row.user_name,
-      timeLabel: row.time_label,
-      volumeLabel: row.volume_label,
-      amount: row.amount,
-      lastInvoiceMessageId: row.last_message_id,
-      stage: row.stage,
-    };
-  }
-
-  const awaitingReceipts = {};
-  for (const row of db.prepare('SELECT * FROM awaiting_receipts').all()) {
-    awaitingReceipts[row.user_id] = {
-      serverName: row.server_name,
-      amount: row.amount,
-    };
-  }
-
-  return { settings, users, invoices, awaitingReceipts };
-}
-
-function saveSetting(key, value) {
-  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, String(value));
-}
-
+// ─── Users ───
 function saveUser(userId, username, firstName) {
-  db.prepare('INSERT OR REPLACE INTO users (user_id, username, first_name) VALUES (?, ?, ?)').run(userId, username || '', firstName || '');
+  state.users[userId] = { username: username || '', firstName: firstName || '' };
+  save();
 }
 
+function getUser(userId) {
+  return state.users[userId] || null;
+}
+
+// ─── Invoices ───
 function saveInvoice(userId, data) {
-  db.prepare(`INSERT OR REPLACE INTO invoices (user_id, server_name, user_name, time_label, volume_label, amount, last_message_id, stage) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
-    userId, data.serverName || '', data.userName || '', data.timeLabel || '', data.volumeLabel || '', data.amount || 0, data.lastInvoiceMessageId || null, data.stage || ''
-  );
+  state.invoices[userId] = {
+    serverName: data.serverName || '',
+    userName: data.userName || '',
+    timeLabel: data.timeLabel || '',
+    volumeLabel: data.volumeLabel || '',
+    amount: data.amount || 0,
+    lastInvoiceMessageId: data.lastInvoiceMessageId || null,
+    stage: data.stage || '',
+  };
+  save();
 }
 
 function removeInvoice(userId) {
-  db.prepare('DELETE FROM invoices WHERE user_id = ?').run(userId);
+  delete state.invoices[userId];
+  save();
 }
 
+function getInvoice(userId) {
+  return state.invoices[userId] || null;
+}
+
+// ─── Awaiting Receipts ───
 function saveAwaitingReceipt(userId, data) {
-  db.prepare('INSERT OR REPLACE INTO awaiting_receipts (user_id, server_name, amount) VALUES (?, ?, ?)').run(userId, data.serverName || '', data.amount || 0);
+  state.awaitingReceipts[userId] = {
+    serverName: data.serverName || '',
+    amount: data.amount || 0,
+  };
+  save();
 }
 
 function removeAwaitingReceipt(userId) {
-  db.prepare('DELETE FROM awaiting_receipts WHERE user_id = ?').run(userId);
+  delete state.awaitingReceipts[userId];
+  save();
 }
 
-function getAllUsers() {
-  return db.prepare('SELECT * FROM users ORDER BY rowid DESC').all();
+// ─── Settings ───
+function saveSetting(key, value) {
+  state.settings[key] = String(value);
+  save();
 }
 
-function getAllInvoices() {
-  return db.prepare('SELECT * FROM invoices ORDER BY rowid DESC').all();
+function getSetting(key) {
+  return state.settings[key] || null;
+}
+
+// ─── Full State Access ───
+function getState() {
+  return state;
+}
+
+// ─── Replace entire state (for restore) ───
+function replaceState(newState) {
+  state = { ...state, ...newState };
+  save();
+  console.log('🔄 State replaced and saved');
+}
+
+// ─── Get raw file buffer (for backup download) ───
+function getFileBuffer() {
+  if (!fs.existsSync(DB_PATH)) return null;
+  return fs.readFileSync(DB_PATH);
+}
+
+// ─── Write raw file buffer (for restore upload) ───
+function writeFileBuffer(buf) {
+  const tmpPath = DB_PATH + '.tmp';
+  fs.writeFileSync(tmpPath, buf);
+  fs.renameSync(tmpPath, DB_PATH);
 }
 
 module.exports = {
-  init, reinit, loadState,
-  saveSetting, saveUser,
-  saveInvoice, removeInvoice,
+  load, save,
+  saveUser, getUser,
+  saveInvoice, removeInvoice, getInvoice,
   saveAwaitingReceipt, removeAwaitingReceipt,
-  getAllUsers, getAllInvoices,
+  saveSetting, getSetting,
+  getState, replaceState,
+  getFileBuffer, writeFileBuffer,
 };

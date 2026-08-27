@@ -219,9 +219,9 @@ const userInvoices = new Map();
 const awaitingReceipts = new Map();
 
 // ─── Load persisted state from database ───
-db.init();
-const _saved = db.loadState();
-for (const uid of _saved.users) seenUsers.add(uid);
+db.load();
+const _saved = db.getState();
+for (const uid of Object.keys(_saved.users)) seenUsers.add(Number(uid));
 for (const [uid, data] of Object.entries(_saved.invoices)) userInvoices.set(Number(uid), data);
 for (const [uid, data] of Object.entries(_saved.awaitingReceipts)) awaitingReceipts.set(Number(uid), data);
 if (_saved.settings.channel) currentChannelUsername = _saved.settings.channel;
@@ -230,13 +230,12 @@ console.log(`💾 Loaded: ${seenUsers.size} users, ${userInvoices.size} invoices
 
 // Reload all state from database (used after restore)
 function reloadState() {
-  // Close old connection and reopen the new database file
-  db.reinit();
-  const s = db.loadState();
+  db.load();
+  const s = db.getState();
   seenUsers.clear();
   userInvoices.clear();
   awaitingReceipts.clear();
-  for (const uid of s.users) seenUsers.add(uid);
+  for (const uid of Object.keys(s.users)) seenUsers.add(Number(uid));
   for (const [uid, data] of Object.entries(s.invoices)) userInvoices.set(Number(uid), data);
   for (const [uid, data] of Object.entries(s.awaitingReceipts)) awaitingReceipts.set(Number(uid), data);
   if (s.settings.channel) currentChannelUsername = s.settings.channel;
