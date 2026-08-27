@@ -581,8 +581,9 @@ app.post('/api/restore', auth, (req, res) => {
     if (buf.length < 100) return res.status(400).json({ error: 'فایل معتبر نیست' });
     if (fs.existsSync(DB_PATH)) fs.copyFileSync(DB_PATH, DB_PATH + '.backup');
     fs.writeFileSync(DB_PATH, buf);
-    res.json({ message: 'دیتابیس بازیابی شد ✅ ربات ۳ ثانیه دیگر ری‌استارت می‌شود.' });
-    setTimeout(() => process.exit(0), 3000);
+    // Reload state from new database
+    if (botState && botState.reloadState) botState.reloadState();
+    res.json({ message: 'دیتابیس بازیابی شد ✅ اطلاعات بروزرسانی شد.' });
   });
   req.on('error', () => res.status(500).json({ error: 'خطا در آپلود' }));
 });

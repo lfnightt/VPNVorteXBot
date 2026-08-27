@@ -228,6 +228,20 @@ if (_saved.settings.channel) currentChannelUsername = _saved.settings.channel;
 if (_saved.settings.membership !== undefined) membershipRequired = _saved.settings.membership === 'true';
 console.log(`💾 Loaded: ${seenUsers.size} users, ${userInvoices.size} invoices, ${awaitingReceipts.size} receipts`);
 
+// Reload all state from database (used after restore)
+function reloadState() {
+  const s = db.loadState();
+  seenUsers.clear();
+  userInvoices.clear();
+  awaitingReceipts.clear();
+  for (const uid of s.users) seenUsers.add(uid);
+  for (const [uid, data] of Object.entries(s.invoices)) userInvoices.set(Number(uid), data);
+  for (const [uid, data] of Object.entries(s.awaitingReceipts)) awaitingReceipts.set(Number(uid), data);
+  if (s.settings.channel) currentChannelUsername = s.settings.channel;
+  if (s.settings.membership !== undefined) membershipRequired = s.settings.membership === 'true';
+  console.log(`🔄 Reloaded: ${seenUsers.size} users, ${userInvoices.size} invoices, ${awaitingReceipts.size} receipts`);
+}
+
 async function isUserChannelMember(userId) {
   try {
     const member = await bot.getChatMember(currentChannelUsername, userId);
@@ -1006,4 +1020,5 @@ module.exports = {
   getMembershipRequired: () => membershipRequired,
   getMarzbanToken,
   createMarzbanUserFromInvoice,
+  reloadState,
 };
