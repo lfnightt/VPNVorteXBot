@@ -1,5 +1,7 @@
 const express = require('express');
 const session = require('express-session');
+const path = require('path');
+const fs = require('fs');
 
 const PORT = process.env.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'vortex2024';
@@ -495,12 +497,48 @@ app.get('/settings', auth, (req, res) => {
       <div class="fg"><label class="fl">رمز عبور پنل</label><input type="password" name="admin_password" class="inp" value="${ADMIN_PASSWORD}" placeholder="رمز جدید"></div>
     </div></div></div>
 
+    <div class="sec">📦 مدیریت دیتابیس</div>
+    <div class="cd" style="margin-bottom:32px"><div class="cd-b">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+        <button type="button" onclick="downloadDB()" class="btn btn-g" style="gap:6px">⬇️ دانلود دیتابیس</button>
+        <label class="btn btn-g" style="gap:6px;cursor:pointer;margin:0">
+          ⬆️ انتخاب فایل دیتابیس
+          <input type="file" id="dbFile" accept=".db" style="display:none" onchange="uploadDB(this)">
+        </label>
+      </div>
+      <div style="margin-top:12px;padding:12px 16px;background:rgba(254,202,87,.06);border:1px solid rgba(254,202,87,.12);border-radius:10px;font-size:12px;color:var(--warn);line-height:1.8;">
+        ⚠️ <b>نکته مهاجرت:</b> برای انتقال بات به حساب Railway دیگر:<br>
+        ۱. ابتدا «دانلود دیتابیس» رو بزنید و فایل رو ذخیره کنید<br>
+        ۲. پروژه جدید روی Railway بسازید و متغیرها رو تنظیم کنید<br>
+        ۳. فایل دیتابیس دانلود شده رو در بخش بالا آپلود کنید<br>
+        ۴. ربات ری‌استارت می‌شود و تمام اطلاعات قبلی برگشته
+      </div>
+    </div></div>
+
     <div style="display:flex;justify-content:flex-end;gap:12px">
       <button type="submit" class="btn btn-p" style="padding:12px 32px">💾 ذخیره تنظیمات</button>
     </div>
   </form>
   <script>
     document.getElementById('sf').addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.target);const d=Object.fromEntries(fd);try{const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});if(r.ok)showToast('تنظیمات ذخیره شد ✅','ok');else showToast('خطا در ذخیره','er')}catch(err){showToast('خطا در ارتباط','er')}});
+
+    function downloadDB(){
+      window.location.href='/api/backup';
+    }
+
+    async function uploadDB(input){
+      const file=input.files[0];
+      if(!file)return;
+      if(!confirm('⚠️ دیتابیس فعلی جایگزین می‌شود! مطمئنید؟')){input.value='';return;}
+      showToast('در حال آپلود...','ok');
+      try{
+        const res=await fetch('/api/restore',{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});
+        const data=await res.json();
+        if(res.ok){showToast(data.message,'ok');setTimeout(()=>location.reload(),3000);}
+        else showToast(data.error||'خطا','er');
+      }catch(e){showToast('خطا در آپلود','er');}
+      input.value='';
+    }
   </script>`;
   res.send(layout('تنظیمات','/settings',c));
 });
@@ -524,6 +562,29 @@ app.post('/api/settings', auth, (req, res) => {
 app.get('/api/stats', auth, (req, res) => {
   if(!botState)return res.json({users:0,orders:0,pending:0});
   res.json({users:botState.seenUsers.size,orders:botState.userInvoices.size,pending:botState.awaitingReceipts.size,channel:botState.getChannelUsername()});
+});
+
+// ═══ BACKUP / RESTORE ═══
+const DB_PATH = path.join(__dirname, '..', 'data', 'data.db');
+
+app.get('/api/backup', auth, (req, res) => {
+  if (!fs.existsSync(DB_PATH)) return res.status(404).json({ error: 'دیتابیس پیدا نشد' });
+  const date = new Date().toISOString().slice(0,10);
+  res.download(DB_PATH, `vortex-backup-${date}.db`);
+});
+
+app.post('/api/restore', auth, (req, res) => {
+  const chunks = [];
+  req.on('data', chunk => chunks.push(chunk));
+  req.on('end', () => {
+    const buf = Buffer.concat(chunks);
+    if (buf.length < 100) return res.status(400).json({ error: 'فایل معتبر نیست' });
+    if (fs.existsSync(DB_PATH)) fs.copyFileSync(DB_PATH, DB_PATH + '.backup');
+    fs.writeFileSync(DB_PATH, buf);
+    res.json({ message: 'دیتابیس بازیابی شد ✅ ربات ۳ ثانیه دیگر ری‌استارت می‌شود.' });
+    setTimeout(() => process.exit(0), 3000);
+  });
+  req.on('error', () => res.status(500).json({ error: 'خطا در آپلود' }));
 });
 
 app.get('/health', (req, res) => {
