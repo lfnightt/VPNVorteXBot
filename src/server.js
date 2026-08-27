@@ -122,8 +122,8 @@ function layout(title, activePage, bodyHtml) {
     .bn-in{display:flex;align-items:center;justify-content:space-around;max-width:500px;margin:0 auto;background:rgba(255,255,255,.04);border-radius:16px;padding:6px 4px;border:1px solid rgba(255,255,255,.04)}
 
     /* Overlay */
-    .ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:99;opacity:0;transition:opacity .3s}
-    .ov.on{opacity:1}
+    .ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);z-index:99;opacity:0;transition:opacity .3s ease;pointer-events:none}
+    .ov.on{opacity:1;pointer-events:auto}
 
     .mt{display:none;position:fixed;top:0;left:0;right:0;z-index:50;padding:16px 60px 16px 16px;background:rgba(7,7,14,.8);backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}
     .mh{display:none}
@@ -208,7 +208,6 @@ function layout(title, activePage, bodyHtml) {
     @media(max-width:768px){
       .sb{transform:translateX(calc(100% + 24px));top:8px;bottom:8px;right:8px;width:calc(100% - 16px);max-width:320px;border-radius:20px}
       .sb.open{transform:translateX(0)}
-      .ov{display:block}
       .main{margin-right:0;padding:16px 16px 100px 16px}
       .bn{display:block}
       .g4,.g3,.g2{grid-template-columns:1fr}
@@ -224,7 +223,7 @@ function layout(title, activePage, bodyHtml) {
 </head>
 <body>
   <div class="mt"><h1 style="font-size:16px;font-weight:800;background:linear-gradient(135deg,#a29bfe,#6c5ce7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">VorteX Panel</h1></div>
-  <div class="ov" id="ov" onclick="toggleSb()"></div>
+  <div class="ov" id="ov" onclick="closeSb()"></div>
   <div class="app">
     <aside class="sb" id="sb">
       <!-- Logo -->
@@ -277,7 +276,8 @@ function layout(title, activePage, bodyHtml) {
   <nav class="bn"><div class="bn-in">${bottomNavHtml}</div></nav>
   <div class="toast" id="toast"></div>
   <script>
-    function toggleSb(){const s=document.getElementById('sb'),o=document.getElementById('ov');s.classList.toggle('open');o.classList.toggle('on');document.body.style.overflow=s.classList.contains('open')?'hidden':''}
+    function toggleSb(){const s=document.getElementById('sb'),o=document.getElementById('ov');const isOpen=s.classList.toggle('open');o.style.display=isOpen?'block':'none';requestAnimationFrame(()=>{o.classList.toggle('on',isOpen)});document.body.style.overflow=isOpen?'hidden':''}
+    function closeSb(){const s=document.getElementById('sb'),o=document.getElementById('ov');s.classList.remove('open');o.classList.remove('on');document.body.style.overflow='';setTimeout(()=>{o.style.display='none'},300)}
     function showToast(m,t='ok'){const e=document.getElementById('toast');e.textContent=m;e.className='toast toast-'+t+' show';setTimeout(()=>e.classList.remove('show'),3000)}
     document.querySelectorAll('.ain').forEach((el,i)=>{el.style.animationDelay=(i*.06)+'s'});
   </script>
