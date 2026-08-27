@@ -971,3 +971,15 @@ bot.on('message', async (msg) => {
 });
 
 console.log('Telegram bot is running...');
+
+// === Web Panel Integration ===
+module.exports = {
+  bot,
+  seenUsers,
+  userInvoices,
+  awaitingReceipts,
+  getChannelUsername: () => currentChannelUsername,
+  getMembershipRequired: () => membershipRequired,
+  getMarzbanToken,
+  createMarzbanUserFromInvoice,
+};

@@ -7,4 +7,6 @@ RUN npm install --omit=dev
 
 COPY . .
 
-CMD ["node", "src/bot.js"]
+ENV NODE_ENV=production
+
+CMD ["node", "src/index.js"]
