@@ -21,121 +21,227 @@ app.use(session({
   cookie: { maxAge: 24 * 60 * 60 * 1000 },
 }));
 
-// ═══════════════════════════════════════════
-//  AUTH MIDDLEWARE
-// ═══════════════════════════════════════════
 function auth(req, res, next) {
   if (req.session && req.session.authenticated) return next();
   res.redirect('/login');
 }
 
 // ═══════════════════════════════════════════
-//  TEMPLATE HELPERS
+//  MASTER LAYOUT
 // ═══════════════════════════════════════════
 const NAV = [
-  { href: '/', icon: '📊', label: 'داشبورد' },
-  { href: '/orders', icon: '📦', label: 'سفارشات' },
-  { href: '/users', icon: '👥', label: 'کاربران' },
-  { href: '/marzban', icon: '🔌', label: 'مرزبان' },
-  { href: '/settings', icon: '⚙️', label: 'تنظیمات' },
+  { href: '/', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>`, label: 'داشبورد' },
+  { href: '/orders', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3"/><path d="m15 9 6-6"/></svg>`, label: 'سفارشات' },
+  { href: '/users', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`, label: 'کاربران' },
+  { href: '/marzban', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>`, label: 'مرزبان' },
+  { href: '/settings', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`, label: 'تنظیمات' },
 ];
 
 function layout(title, activePage, bodyHtml) {
   const navHtml = NAV.map(item => {
     const active = activePage === item.href;
-    return `<a href="${item.href}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm transition-all ${
-      active ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-    }">
-      <span class="text-lg">${item.icon}</span>
+    return `<a href="${item.href}" class="group relative flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium transition-all duration-300 ${active ? 'bg-gradient-to-l from-indigo-600/20 to-purple-600/20 text-white shadow-lg shadow-indigo-500/10 border border-indigo-500/20' : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'}">
+      ${active ? '<span class="absolute right-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-gradient-to-b from-indigo-500 to-purple-500 rounded-full"></span>' : ''}
+      <span class="flex-shrink-0 ${active ? 'text-indigo-400' : 'text-gray-500 group-hover:text-gray-300'}">${item.icon}</span>
       <span>${item.label}</span>
     </a>`;
-  }).join('\n');
+  }).join('');
+
+  const bottomNavHtml = NAV.map(item => {
+    const active = activePage === item.href;
+    return `<a href="${item.href}" class="flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition-all ${active ? 'text-indigo-400' : 'text-gray-500'}">
+      <span class="${active ? 'drop-shadow-[0_0_6px_rgba(129,140,248,0.5)]' : ''}">${item.icon}</span>
+      <span class="text-[10px] font-medium">${item.label}</span>
+      ${active ? '<span class="w-4 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full mt-0.5"></span>' : ''}
+    </a>`;
+  }).join('');
 
   return `<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title} | VorteX Panel</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Vazirmatn', 'Tahoma', 'sans-serif'] }
-        }
-      }
-    }
-  </script>
-  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33/Vazirmatn-font-face.css" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#07070e">
+  <title>${title} · VorteX</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
-    body { font-family: 'Vazirmatn', Tahoma, sans-serif; }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #1f2937; }
-    ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
-    .fade-in { animation: fadeIn 0.3s ease-in; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#07070e;--bg2:#0d0d18;--card:#111120;--card2:#16162a;--elevated:#1a1a30;
+      --border:#1e1e3a;--border2:#2a2a50;
+      --t1:#f0f0f8;--t2:#8888a8;--t3:#55556a;
+      --accent:#6c5ce7;--accent2:#a29bfe;--glow:rgba(108,92,231,0.3);
+      --ok:#00d2a0;--ok-bg:rgba(0,210,160,0.1);
+      --warn:#feca57;--warn-bg:rgba(254,202,87,0.1);
+      --err:#ff6b6b;--err-bg:rgba(255,107,107,0.1);
+      --info:#48dbfb;--info-bg:rgba(72,219,251,0.1);
+      --sb:280px;--bn:72px;--r:16px;--rs:10px;--rxs:6px;
+    }
+    html{scroll-behavior:smooth}
+    body{font-family:'Vazirmatn',system-ui,sans-serif;background:var(--bg);color:var(--t1);min-height:100vh;min-height:100dvh;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+    ::-webkit-scrollbar{width:5px;height:5px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:10px}
+
+    .app{display:flex;min-height:100vh;min-height:100dvh}
+
+    /* Sidebar */
+    .sb{position:fixed;right:0;top:0;width:var(--sb);height:100vh;height:100dvh;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:100;transition:transform .4s cubic-bezier(.16,1,.3,1)}
+    .sb-hd{padding:24px 20px;border-bottom:1px solid var(--border)}
+    .sb-nav{flex:1;padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+    .sb-ft{padding:12px;border-top:1px solid var(--border)}
+
+    .main{flex:1;margin-right:var(--sb);padding:24px;min-height:100vh;min-height:100dvh}
+
+    /* Bottom Nav */
+    .bn{display:none;position:fixed;bottom:0;left:0;right:0;height:var(--bn);background:rgba(13,13,24,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);z-index:100;padding:0 8px;padding-bottom:env(safe-area-inset-bottom,0)}
+    .bn-in{display:flex;align-items:center;justify-content:space-around;height:100%;max-width:500px;margin:0 auto}
+
+    /* Overlay */
+    .ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:99;opacity:0;transition:opacity .3s}
+    .ov.on{opacity:1}
+
+    .mt{display:none;position:fixed;top:0;left:0;right:0;z-index:50;padding:16px 60px 16px 16px;background:rgba(7,7,14,.8);backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}
+    .mh{display:none;position:fixed;top:16px;right:16px;width:44px;height:44px;background:var(--card);border:1px solid var(--border);border-radius:12px;align-items:center;justify-content:center;z-index:101;cursor:pointer;color:var(--t1);transition:all .2s}
+    .mh:active{transform:scale(.92)}
+
+    /* Card */
+    .cd{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;transition:all .3s}
+    .cd:hover{border-color:var(--border2)}
+    .cd-h{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+    .cd-b{padding:20px 24px}
+
+    /* Stat */
+    .st{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:20px;position:relative;overflow:hidden;transition:all .3s}
+    .st::before{content:'';position:absolute;top:0;right:0;width:100px;height:100px;border-radius:50%;filter:blur(40px);opacity:.15;transition:opacity .3s}
+    .st:hover{border-color:var(--border2);transform:translateY(-2px)}
+    .st:hover::before{opacity:.25}
+    .st.i::before{background:#6c5ce7}.st.g::before{background:#00d2a0}.st.a::before{background:#feca57}.st.b::before{background:#48dbfb}
+    .sti{width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:16px}
+    .sti.i{background:rgba(108,92,231,.15);color:#a29bfe}.sti.g{background:var(--ok-bg);color:var(--ok)}.sti.a{background:var(--warn-bg);color:var(--warn)}.sti.b{background:var(--info-bg);color:var(--info)}
+
+    /* Table */
+    .tw{overflow-x:auto}
+    table{width:100%;border-collapse:collapse}
+    thead th{padding:14px 20px;text-align:right;font-size:12px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;background:rgba(255,255,255,.02);border-bottom:1px solid var(--border);white-space:nowrap}
+    tbody td{padding:14px 20px;font-size:14px;border-bottom:1px solid rgba(255,255,255,.03);color:var(--t2);transition:background .15s}
+    tbody tr{transition:background .15s}
+    tbody tr:hover{background:rgba(255,255,255,.02)}
+    tbody tr:last-child td{border-bottom:none}
+
+    /* Badge */
+    .bdg{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600;white-space:nowrap}
+    .bdg-ok{background:var(--ok-bg);color:var(--ok)}.bdg-w{background:var(--warn-bg);color:var(--warn)}.bdg-e{background:var(--err-bg);color:var(--err)}.bdg-i{background:var(--info-bg);color:var(--info)}.bdg-m{background:rgba(255,255,255,.05);color:var(--t3)}.bdg-ac{background:rgba(108,92,231,.15);color:var(--accent2)}
+
+    /* Button */
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 20px;border-radius:var(--rs);font-family:inherit;font-size:14px;font-weight:600;border:none;cursor:pointer;transition:all .2s;white-space:nowrap}
+    .btn:active{transform:scale(.97)}
+    .btn-p{background:linear-gradient(135deg,#6c5ce7,#a855f7);color:#fff;box-shadow:0 4px 15px rgba(108,92,231,.3)}
+    .btn-p:hover{box-shadow:0 6px 25px rgba(108,92,231,.4);transform:translateY(-1px)}
+    .btn-g{background:transparent;color:var(--t2);border:1px solid var(--border)}
+    .btn-g:hover{background:rgba(255,255,255,.05);color:var(--t1);border-color:var(--border2)}
+    .btn-s{padding:6px 14px;font-size:12px;border-radius:var(--rxs)}
+
+    /* Input */
+    .inp{width:100%;padding:12px 16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--rs);color:var(--t1);font-family:inherit;font-size:14px;transition:all .2s;outline:none}
+    .inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--glow)}
+    .inp::placeholder{color:var(--t3)}
+    .sel{appearance:none;width:100%;padding:12px 40px 12px 16px;background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2355556a' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat left 16px center;border:1px solid var(--border);border-radius:var(--rs);color:var(--t1);font-family:inherit;font-size:14px;transition:all .2s;outline:none;cursor:pointer}
+    .sel:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--glow)}
+    .fg{margin-bottom:16px}
+    .fl{display:block;margin-bottom:8px;font-size:13px;font-weight:500;color:var(--t2)}
+
+    /* Grid */
+    .g{display:grid;gap:16px}.g2{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
+
+    /* Section */
+    .sec{font-size:13px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+    .sec::after{content:'';flex:1;height:1px;background:linear-gradient(to left,var(--border),transparent)}
+
+    /* Anim */
+    @keyframes fiu{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+    .ain{animation:fiu .5s cubic-bezier(.16,1,.3,1) forwards}
+    @keyframes pd{0%,100%{opacity:1}50%{opacity:.4}}
+    .pd{animation:pd 2s ease-in-out infinite}
+
+    /* Empty */
+    .emp{text-align:center;padding:48px 24px;color:var(--t3)}
+    .emp-i{font-size:48px;margin-bottom:16px;opacity:.3}
+
+    /* Toast */
+    .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-100px);padding:12px 24px;border-radius:var(--rs);font-size:14px;font-weight:600;z-index:1000;transition:transform .4s cubic-bezier(.16,1,.3,1);pointer-events:none}
+    .toast.show{transform:translateX(-50%) translateY(0);pointer-events:auto}
+    .toast-ok{background:var(--ok);color:#000}.toast-er{background:var(--err);color:#fff}
+
+    /* Mobile Cards */
+    .mc{display:none}
+    .cr{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:16px;margin-bottom:10px}
+    .cr-t{font-weight:700;color:var(--t1);font-size:15px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+    .cr-f{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,.03)}
+    .cr-f:last-child{border-bottom:none}
+    .cr-l{color:var(--t3)}.cr-v{color:var(--t2);font-weight:500}
+
+    @media(max-width:1024px){.g4,.g3{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:768px){
+      .sb{transform:translateX(100%)}.sb.open{transform:translateX(0)}
+      .ov{display:block}.mh{display:flex}.mt{display:block}
+      .main{margin-right:0;padding:0 16px 96px 16px}
+      .bn{display:block}
+      .g4,.g3,.g2{grid-template-columns:1fr}
+      .do{display:none!important}.mc{display:block}.tw{display:none}
+      .cd-h,.cd-b{padding:16px}.st{padding:16px}
+      .sti{width:40px;height:40px;border-radius:12px;font-size:18px;margin-bottom:12px}
+      h1{font-size:20px!important}
+      .sec{font-size:11px}
+      .fr{grid-template-columns:1fr!important}
+    }
+    @media(max-width:380px){.main{padding:0 12px 96px 12px}.st{padding:14px}}
   </style>
 </head>
-<body class="bg-gray-950 text-gray-100 min-h-screen">
-  <!-- Sidebar -->
-  <aside class="fixed right-0 top-0 h-full w-64 bg-gray-900 border-l border-gray-800 flex flex-col z-50">
-    <div class="p-5 border-b border-gray-800">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-lg">V</div>
-        <div>
-          <h1 class="font-bold text-white">VorteX VPN</h1>
-          <p class="text-xs text-gray-500">پنل مدیریت ربات</p>
+<body>
+  <button class="mh" onclick="toggleSb()" aria-label="منو">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="mt"><h1 style="font-size:16px;font-weight:800;background:linear-gradient(135deg,#a29bfe,#6c5ce7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">VorteX Panel</h1></div>
+  <div class="ov" id="ov" onclick="toggleSb()"></div>
+  <div class="app">
+    <aside class="sb" id="sb">
+      <div class="sb-hd">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div style="width:44px;height:44px;background:linear-gradient(135deg,#6c5ce7,#a855f7);border-radius:14px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(108,92,231,.4);flex-shrink:0;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <div>
+            <div style="font-size:17px;font-weight:800;color:var(--t1);letter-spacing:-.3px;">VorteX</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:2px;">پنل مدیریت ربات</div>
+          </div>
         </div>
       </div>
-    </div>
-    <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
-      ${navHtml}
-    </nav>
-    <div class="p-3 border-t border-gray-800">
-      <div class="flex items-center gap-2 px-4 py-2 text-xs text-gray-600">
-        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-        <span>بات فعال</span>
+      <nav class="sb-nav">${navHtml}</nav>
+      <div class="sb-ft">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 16px;margin-bottom:8px;">
+          <span class="pd" style="width:7px;height:7px;border-radius:50%;background:var(--ok);flex-shrink:0;"></span>
+          <span style="font-size:12px;color:var(--t3);">بات فعال و متصل</span>
+        </div>
+        <a href="/logout" class="group flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium text-gray-500 hover:text-red-400 hover:bg-red-500/5 transition-all border border-transparent hover:border-red-500/10">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <span>خروج از پنل</span>
+        </a>
       </div>
-      <a href="/logout" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-400 hover:bg-red-500/10 hover:text-red-400 rounded-lg transition-all mt-1">
-        <span>🚪</span>
-        <span>خروج</span>
-      </a>
-    </div>
-  </aside>
-
-  <!-- Main Content -->
-  <main class="mr-64 p-6 min-h-screen">
-    <div class="fade-in max-w-7xl mx-auto">
-      ${bodyHtml}
-    </div>
-  </main>
+    </aside>
+    <main class="main">${bodyHtml}</main>
+  </div>
+  <nav class="bn"><div class="bn-in">${bottomNavHtml}</div></nav>
+  <div class="toast" id="toast"></div>
+  <script>
+    function toggleSb(){const s=document.getElementById('sb'),o=document.getElementById('ov');s.classList.toggle('open');o.classList.toggle('on');document.body.style.overflow=s.classList.contains('open')?'hidden':''}
+    function showToast(m,t='ok'){const e=document.getElementById('toast');e.textContent=m;e.className='toast toast-'+t+' show';setTimeout(()=>e.classList.remove('show'),3000)}
+    document.querySelectorAll('.ain').forEach((el,i)=>{el.style.animationDelay=(i*.06)+'s'});
+  </script>
 </body>
 </html>`;
-}
-
-function statCard(icon, label, value, color) {
-  return `
-  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5 hover:border-gray-700 transition-all">
-    <div class="flex items-center justify-between mb-3">
-      <span class="text-2xl">${icon}</span>
-      <span class="text-xs px-2 py-1 rounded-full ${color}">${label}</span>
-    </div>
-    <div class="text-3xl font-bold text-white">${value}</div>
-  </div>`;
-}
-
-function statusBadge(status) {
-  const map = {
-    'pending': ['در انتظار', 'bg-yellow-500/20 text-yellow-400'],
-    'awaiting_receipt': ['ارسال رسید', 'bg-blue-500/20 text-blue-400'],
-    'approved': ['تأیید شده', 'bg-green-500/20 text-green-400'],
-    'rejected': ['رد شده', 'bg-red-500/20 text-red-400'],
-    'delivered': ['تحویل شده', 'bg-purple-500/20 text-purple-400'],
-    'cancelled': ['لغو شده', 'bg-gray-500/20 text-gray-400'],
-  };
-  const [text, cls] = map[status] || [status, 'bg-gray-500/20 text-gray-400'];
-  return `<span class="px-2.5 py-1 text-xs rounded-full ${cls}">${text}</span>`;
 }
 
 // ═══════════════════════════════════════════
@@ -143,707 +249,254 @@ function statusBadge(status) {
 // ═══════════════════════════════════════════
 app.get('/login', (req, res) => {
   if (req.session && req.session.authenticated) return res.redirect('/');
-  const error = req.query.error ? '<div class="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl text-sm mb-4">رمز عبور اشتباه است</div>' : '';
+  const err = req.query.error ? '<div style="background:var(--err-bg);border:1px solid rgba(255,107,107,.2);color:var(--err);padding:12px 16px;border-radius:var(--rs);font-size:13px;margin-bottom:20px;">رمز عبور صحیح نیست</div>' : '';
   res.send(`<!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ورود | VorteX Panel</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33/Vazirmatn-font-face.css" rel="stylesheet">
-  <style>body { font-family: 'Vazirmatn', Tahoma, sans-serif; }</style>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><meta name="theme-color" content="#07070e">
+  <title>ورود · VorteX</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Vazirmatn',sans-serif;background:#07070e;color:#f0f0f8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;overflow:hidden}
+    body::before{content:'';position:absolute;top:-200px;right:-200px;width:500px;height:500px;background:radial-gradient(circle,rgba(108,92,231,.15),transparent 70%);border-radius:50%}
+    body::after{content:'';position:absolute;bottom:-200px;left:-200px;width:500px;height:500px;background:radial-gradient(circle,rgba(168,85,247,.1),transparent 70%);border-radius:50%}
+    .lc{width:100%;max-width:400px;position:relative;z-index:1}
+    .ll{text-align:center;margin-bottom:40px}
+    .lb{width:72px;height:72px;background:linear-gradient(135deg,#6c5ce7,#a855f7);border-radius:22px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(108,92,231,.4);margin-bottom:20px}
+    .bx{background:#111120;border:1px solid #1e1e3a;border-radius:20px;padding:32px}
+    .lt{font-size:22px;font-weight:800;margin-bottom:6px;background:linear-gradient(135deg,#f0f0f8,#a29bfe);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .ls{font-size:14px;color:#55556a;margin-bottom:28px}
+    .li{width:100%;padding:14px 18px;background:#07070e;border:1px solid #1e1e3a;border-radius:12px;color:#f0f0f8;font-family:inherit;font-size:15px;outline:none;transition:all .2s;margin-bottom:20px}
+    .li:focus{border-color:#6c5ce7;box-shadow:0 0 0 3px rgba(108,92,231,.2)}
+    .li::placeholder{color:#55556a}
+    .btn{width:100%;padding:14px;background:linear-gradient(135deg,#6c5ce7,#a855f7);color:#fff;border:none;border-radius:12px;font-family:inherit;font-size:16px;font-weight:700;cursor:pointer;transition:all .2s;box-shadow:0 4px 20px rgba(108,92,231,.3)}
+    .btn:hover{box-shadow:0 6px 30px rgba(108,92,231,.4);transform:translateY(-1px)}
+    .btn:active{transform:scale(.98)}
+  </style>
 </head>
-<body class="bg-gray-950 min-h-screen flex items-center justify-center">
-  <div class="w-full max-w-sm mx-4">
-    <div class="text-center mb-8">
-      <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4 shadow-lg shadow-blue-500/20">V</div>
-      <h1 class="text-2xl font-bold text-white">VorteX VPN Panel</h1>
-      <p class="text-gray-500 text-sm mt-1">پنل مدیریت ربات تلگرام</p>
+<body>
+  <div class="lc">
+    <div class="ll">
+      <div class="lb"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+      <div class="lt">ورود به پنل</div>
+      <div class="ls">برای مدیریت ربات VorteX وارد شوید</div>
     </div>
-    <form method="POST" action="/login" class="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-4">
-      ${error}
-      <div>
-        <label class="block text-sm text-gray-400 mb-2">رمز عبور</label>
-        <input type="password" name="password" required
-          class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-colors"
-          placeholder="رمز عبور پنل را وارد کنید">
-      </div>
-      <button type="submit"
-        class="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl font-bold hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg shadow-blue-500/20">
-        ورود به پنل
-      </button>
-    </form>
+    <div class="bx">
+      <form method="POST" action="/login">
+        ${err}
+        <input type="password" name="password" class="li" placeholder="رمز عبور پنل" required autofocus>
+        <button type="submit" class="btn">ورود</button>
+      </form>
+    </div>
   </div>
 </body>
 </html>`);
 });
 
 app.post('/login', (req, res) => {
-  if (req.body.password === ADMIN_PASSWORD) {
-    req.session.authenticated = true;
-    return res.redirect('/');
-  }
+  if (req.body.password === ADMIN_PASSWORD) { req.session.authenticated = true; return res.redirect('/'); }
   res.redirect('/login?error=1');
 });
 
-app.get('/logout', (req, res) => {
-  req.session.destroy();
-  res.redirect('/login');
-});
+app.get('/logout', (req, res) => { req.session.destroy(); res.redirect('/login'); });
 
 // ═══════════════════════════════════════════
 //  DASHBOARD
 // ═══════════════════════════════════════════
 app.get('/', auth, (req, res) => {
-  const users = botState ? botState.seenUsers.size : 0;
-  const orders = botState ? botState.userInvoices.size : 0;
-  const pending = botState ? botState.awaitingReceipts.size : 0;
-  const channel = botState ? botState.getChannelUsername() : 'N/A';
-  const membership = botState ? botState.getMembershipRequired() : false;
+  const u = botState ? botState.seenUsers.size : 0;
+  const o = botState ? botState.userInvoices.size : 0;
+  const p = botState ? botState.awaitingReceipts.size : 0;
+  const ch = botState ? botState.getChannelUsername() : 'N/A';
 
-  // Recent invoices
-  let recentOrdersHtml = '';
-  if (botState && botState.userInvoices.size > 0) {
-    const entries = [...botState.userInvoices.entries()].slice(-10).reverse();
-    recentOrdersHtml = entries.map(([userId, inv]) => `
-      <tr class="border-t border-gray-800 hover:bg-gray-800/50">
-        <td class="px-4 py-3 text-sm">${userId}</td>
-        <td class="px-4 py-3 text-sm">${inv.userName || '-'}</td>
-        <td class="px-4 py-3 text-sm">${inv.serverName || '-'}</td>
-        <td class="px-4 py-3 text-sm">${inv.volumeLabel || '-'}</td>
-        <td class="px-4 py-3 text-sm">${inv.timeLabel || '-'}</td>
-        <td class="px-4 py-3 text-sm font-bold text-green-400">${inv.amount ? inv.amount.toLocaleString('fa-IR') + ' تومان' : 'تعریف نشده'}</td>
-      </tr>
-    `).join('');
-  } else {
-    recentOrdersHtml = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">هنوز سفارشی ثبت نشده</td></tr>';
-  }
-
-  // Pending receipts
-  let pendingHtml = '';
+  let pendT = '<div class="emp"><div class="emp-i">✅</div><p>رسید در انتظاری نیست</p></div>';
+  let pendC = pendT;
   if (botState && botState.awaitingReceipts.size > 0) {
-    const entries = [...botState.awaitingReceipts.entries()];
-    pendingHtml = entries.map(([userId, data]) => `
-      <tr class="border-t border-gray-800 hover:bg-gray-800/50">
-        <td class="px-4 py-3 text-sm">${userId}</td>
-        <td class="px-4 py-3 text-sm">${data.serverName || '-'}</td>
-        <td class="px-4 py-3 text-sm font-bold text-yellow-400">${data.amount ? data.amount.toLocaleString('fa-IR') + ' تومان' : '-'}</td>
-        <td class="px-4 py-3">
-          <span class="px-2 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400">در انتظار رسید</span>
-        </td>
-      </tr>
-    `).join('');
-  } else {
-    pendingHtml = '<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">رسید در انتظاری وجود ندارد</td></tr>';
+    const en = [...botState.awaitingReceipts.entries()];
+    pendT = `<div class="tw"><table><thead><tr><th>کاربر</th><th>سرور</th><th>مبلغ</th><th>وضعیت</th></tr></thead><tbody>${en.map(([id,d])=>`<tr><td style="font-family:monospace;color:var(--t1)">${id}</td><td>${d.serverName||'-'}</td><td style="color:var(--warn);font-weight:700">${d.amount?d.amount.toLocaleString('fa-IR')+' ت':'-'}</td><td><span class="bdg bdg-w">⏳ منتظر</span></td></tr>`).join('')}</tbody></table></div>`;
+    pendC = en.map(([id,d])=>`<div class="cr"><div class="cr-t"><span style="font-family:monospace">${id}</span><span class="bdg bdg-w">⏳</span></div><div class="cr-f"><span class="cr-l">سرور</span><span class="cr-v">${d.serverName||'-'}</span></div><div class="cr-f"><span class="cr-l">مبلغ</span><span class="cr-v" style="color:var(--warn)">${d.amount?d.amount.toLocaleString('fa-IR')+' ت':'-'}</span></div></div>`).join('');
   }
 
-  const content = `
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h1 class="text-2xl font-bold">داشبورد</h1>
-        <p class="text-gray-500 text-sm mt-1">خلاصه وضعیت ربات و سفارشات</p>
-      </div>
-      <div class="flex items-center gap-2 text-sm text-gray-400">
-        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-        ربات فعال
-      </div>
-    </div>
+  let recT = '<div class="emp"><div class="emp-i">📦</div><p>هنوز سفارشی ثبت نشده</p></div>';
+  let recC = recT;
+  if (botState && botState.userInvoices.size > 0) {
+    const en = [...botState.userInvoices.entries()].slice(-8).reverse();
+    recT = `<div class="tw"><table><thead><tr><th>کاربر</th><th>نام</th><th>سرور</th><th>حجم</th><th>زمان</th><th>مبلغ</th></tr></thead><tbody>${en.map(([id,v])=>`<tr><td style="font-family:monospace;color:var(--t1)">${id}</td><td style="color:var(--t1)">${v.userName||'-'}</td><td>${v.serverName||'-'}</td><td>${v.volumeLabel||'-'}</td><td>${v.timeLabel||'-'}</td><td style="color:var(--ok);font-weight:700">${v.amount?v.amount.toLocaleString('fa-IR')+' ت':'-'}</td></tr>`).join('')}</tbody></table></div>`;
+    recC = en.map(([id,v])=>`<div class="cr"><div class="cr-t"><span>${v.userName||'کاربر'}</span><span style="font-family:monospace;font-size:12px;color:var(--t3)">#${id}</span></div><div class="cr-f"><span class="cr-l">سرور</span><span class="cr-v">${v.serverName||'-'}</span></div><div class="cr-f"><span class="cr-l">حجم</span><span class="cr-v">${v.volumeLabel||'-'}</span></div><div class="cr-f"><span class="cr-l">زمان</span><span class="cr-v">${v.timeLabel||'-'}</span></div><div class="cr-f"><span class="cr-l">مبلغ</span><span class="cr-v" style="color:var(--ok);font-weight:700">${v.amount?v.amount.toLocaleString('fa-IR')+' ت':'-'}</span></div></div>`).join('');
+  }
 
-    <!-- Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      ${statCard('👥', 'کل کاربران', users, 'bg-blue-500/20 text-blue-400')}
-      ${statCard('📦', 'کل سفارشات', orders, 'bg-purple-500/20 text-purple-400')}
-      ${statCard('⏳', 'در انتظار رسید', pending, 'bg-yellow-500/20 text-yellow-400')}
-      ${statCard('📢', 'کانال', channel.replace('@', ''), 'bg-green-500/20 text-green-400')}
+  const c = `
+    <div class="ain" style="margin-bottom:28px"><h1 style="font-size:26px;font-weight:900;letter-spacing:-.5px">داشبورد</h1><p style="color:var(--t3);font-size:14px;margin-top:6px">نمای کلی وضعیت ربات و فعالیت‌ها</p></div>
+    <div class="g g4 ain" style="margin-bottom:24px">
+      <div class="st i"><div class="sti i">👥</div><div style="font-size:28px;font-weight:900;color:var(--t1);line-height:1">${u}</div><div style="font-size:12px;color:var(--t3);margin-top:8px">کل کاربران</div></div>
+      <div class="st g"><div class="sti g">📦</div><div style="font-size:28px;font-weight:900;color:var(--t1);line-height:1">${o}</div><div style="font-size:12px;color:var(--t3);margin-top:8px">کل سفارشات</div></div>
+      <div class="st a"><div class="sti a">⏳</div><div style="font-size:28px;font-weight:900;color:var(--t1);line-height:1">${p}</div><div style="font-size:12px;color:var(--t3);margin-top:8px">در انتظار رسید</div></div>
+      <div class="st b"><div class="sti b">📢</div><div style="font-size:16px;font-weight:700;color:var(--t1);margin-top:8px;line-height:1.3">${ch.replace('@','')}</div><div style="font-size:12px;color:var(--t3);margin-top:8px">کانال فعال</div></div>
     </div>
-
-    <!-- Quick Info -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-        <h3 class="text-sm text-gray-400 mb-2">شماره کارت</h3>
-        <p class="text-lg font-mono font-bold text-white">${CARD_NUMBER || 'تعریف نشده'}</p>
-      </div>
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-        <h3 class="text-sm text-gray-400 mb-2">عضویت اجباری کانال</h3>
-        <p class="text-lg font-bold ${membership ? 'text-green-400' : 'text-red-400'}">${membership ? 'فعال ✅' : 'غیرفعال ❌'}</p>
-      </div>
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-        <h3 class="text-sm text-gray-400 mb-2">پنل مرزبان</h3>
-        <p class="text-lg font-bold ${MARZBAN_URL ? 'text-green-400' : 'text-red-400'}">${MARZBAN_URL ? 'متصل ✅' : 'تنظیم نشده ❌'}</p>
-      </div>
+    <div class="sec ain">اطلاعات سریع</div>
+    <div class="g g3 ain" style="margin-bottom:28px">
+      <div class="st"><div style="font-size:12px;color:var(--t3);margin-bottom:8px">💳 شماره کارت</div><div style="font-size:16px;font-weight:700;font-family:monospace;letter-spacing:1px">${CARD_NUMBER||'—'}</div></div>
+      <div class="st"><div style="font-size:12px;color:var(--t3);margin-bottom:8px">📢 عضویت کانال</div><div style="font-size:14px;font-weight:700">${botState&&botState.getMembershipRequired()?'<span class="bdg bdg-ok">فعال</span>':'<span class="bdg bdg-m">غیرفعال</span>'}</div></div>
+      <div class="st"><div style="font-size:12px;color:var(--t3);margin-bottom:8px">🔌 مرزبان</div><div style="font-size:14px;font-weight:700">${MARZBAN_URL?'<span class="bdg bdg-ok">متصل</span>':'<span class="bdg bdg-e">تنظیم نشده</span>'}</div></div>
     </div>
-
-    <!-- Pending Receipts -->
-    <div class="bg-gray-900 border border-gray-800 rounded-2xl mb-6">
-      <div class="px-5 py-4 border-b border-gray-800">
-        <h2 class="font-bold text-lg">⏳ رسیدهای در انتظار بررسی</h2>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead class="bg-gray-800/50 text-gray-400 text-sm">
-            <tr>
-              <th class="px-4 py-3 text-right">آیدی کاربر</th>
-              <th class="px-4 py-3 text-right">سرور</th>
-              <th class="px-4 py-3 text-right">مبلغ</th>
-              <th class="px-4 py-3 text-right">وضعیت</th>
-            </tr>
-          </thead>
-          <tbody>${pendingHtml}</tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Recent Orders -->
-    <div class="bg-gray-900 border border-gray-800 rounded-2xl">
-      <div class="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
-        <h2 class="font-bold text-lg">📦 آخرین سفارشات</h2>
-        <a href="/orders" class="text-sm text-blue-400 hover:text-blue-300">مشاهده همه →</a>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead class="bg-gray-800/50 text-gray-400 text-sm">
-            <tr>
-              <th class="px-4 py-3 text-right">آیدی کاربر</th>
-              <th class="px-4 py-3 text-right">نام</th>
-              <th class="px-4 py-3 text-right">سرور</th>
-              <th class="px-4 py-3 text-right">حجم</th>
-              <th class="px-4 py-3 text-right">زمان</th>
-              <th class="px-4 py-3 text-right">مبلغ</th>
-            </tr>
-          </thead>
-          <tbody>${recentOrdersHtml}</tbody>
-        </table>
-      </div>
-    </div>
-  `;
-
-  res.send(layout('داشبورد', '/', content));
+    ${botState&&botState.awaitingReceipts.size>0?`<div class="cd ain" style="margin-bottom:24px;border-color:rgba(254,202,87,.15)"><div class="cd-h" style="border-color:rgba(254,202,87,.1)"><div><div style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:50%;background:var(--warn)"></span>رسیدهای در انتظار</div><div style="font-size:12px;color:var(--t3);margin-top:4px">${botState.awaitingReceipts.size} رسید منتظر تأیید</div></div></div><div class="cd-b" style="padding:0">${pendT}</div></div><div class="mc ain" style="margin-bottom:24px">${pendC}</div>`:''}
+    <div class="cd ain"><div class="cd-h"><div style="font-size:16px;font-weight:700">آخرین سفارشات</div><a href="/orders" class="btn btn-g btn-s" style="text-decoration:none">مشاهده همه ←</a></div><div class="cd-b" style="padding:0">${recT}</div></div>
+    <div class="mc ain" style="margin-top:16px">${recC}</div>`;
+  res.send(layout('داشبورد','/',c));
 });
 
 // ═══════════════════════════════════════════
-//  ORDERS PAGE
+//  ORDERS
 // ═══════════════════════════════════════════
 app.get('/orders', auth, (req, res) => {
-  let rowsHtml = '';
+  let oT='',oC='';
+  if (botState&&botState.userInvoices.size>0) {
+    const en=[...botState.userInvoices.entries()].reverse();
+    oT=`<div class="tw"><table><thead><tr><th>کاربر</th><th>نام</th><th>سرور</th><th>حجم</th><th>زمان</th><th>مبلغ</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>${en.map(([id,v])=>{const hp=botState.awaitingReceipts.has(id);return`<tr><td style="font-family:monospace;color:var(--t1)">${id}</td><td style="color:var(--t1)">${v.userName||'-'}</td><td>${v.serverName||'-'}</td><td>${v.volumeLabel||'-'}</td><td>${v.timeLabel||'-'}</td><td style="color:var(--ok);font-weight:700">${v.amount?v.amount.toLocaleString('fa-IR')+' ت':'—'}</td><td>${hp?'<span class="bdg bdg-w">⏳ رسید</span>':'<span class="bdg bdg-i">ثبت شده</span>'}</td><td><button onclick="ne(${id})" class="btn btn-g btn-s">📩 اتمام</button></td></tr>`}).join('')}</tbody></table></div>`;
+    oC=en.map(([id,v])=>{const hp=botState.awaitingReceipts.has(id);return`<div class="cr"><div class="cr-t"><span>${v.userName||'کاربر'}</span>${hp?'<span class="bdg bdg-w">⏳ رسید</span>':'<span class="bdg bdg-i">ثبت شده</span>'}</div><div class="cr-f"><span class="cr-l">آیدی</span><span class="cr-v" style="font-family:monospace">${id}</span></div><div class="cr-f"><span class="cr-l">سرور</span><span class="cr-v">${v.serverName||'-'}</span></div><div class="cr-f"><span class="cr-l">حجم</span><span class="cr-v">${v.volumeLabel||'-'}</span></div><div class="cr-f"><span class="cr-l">زمان</span><span class="cr-v">${v.timeLabel||'-'}</span></div><div class="cr-f"><span class="cr-l">مبلغ</span><span class="cr-v" style="color:var(--ok);font-weight:700">${v.amount?v.amount.toLocaleString('fa-IR')+' ت':'—'}</span></div><div style="margin-top:10px"><button onclick="ne(${id})" class="btn btn-g btn-s" style="width:100%">📩 ارسال اعلان اتمام</button></div></div>`}).join('');
+  } else { oT=oC='<div class="emp"><div class="emp-i">📦</div><p>هنوز سفارشی ثبت نشده</p></div>'; }
 
-  if (botState && botState.userInvoices.size > 0) {
-    const entries = [...botState.userInvoices.entries()].reverse();
-    rowsHtml = entries.map(([userId, inv]) => {
-      const isPending = botState.awaitingReceipts.has(userId);
-      return `
-      <tr class="border-t border-gray-800 hover:bg-gray-800/50 transition-colors">
-        <td class="px-4 py-3 text-sm font-mono">${userId}</td>
-        <td class="px-4 py-3 text-sm">${inv.userName || '-'}</td>
-        <td class="px-4 py-3 text-sm">${inv.serverName || '-'}</td>
-        <td class="px-4 py-3 text-sm">${inv.volumeLabel || '-'}</td>
-        <td class="px-4 py-3 text-sm">${inv.timeLabel || '-'}</td>
-        <td class="px-4 py-3 text-sm font-bold">${inv.amount ? inv.amount.toLocaleString('fa-IR') + ' تومان' : '-'}</td>
-        <td class="px-4 py-3">
-          ${isPending
-            ? '<span class="px-2.5 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400">⏳ در انتظار رسید</span>'
-            : inv.amount ? '<span class="px-2.5 py-1 text-xs rounded-full bg-blue-500/20 text-blue-400">📦 ثبت شده</span>'
-            : '<span class="px-2.5 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400">جدید</span>'
-          }
-        </td>
-        <td class="px-4 py-3">
-          <div class="flex gap-1">
-            <button onclick="sendExpireNotify(${userId})" class="px-3 py-1 text-xs bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors">
-              📩 اتمام
-            </button>
-          </div>
-        </td>
-      </tr>`;
-    }).join('');
-  } else {
-    rowsHtml = '<tr><td colspan="8" class="px-4 py-12 text-center text-gray-500">هنوز سفارشی ثبت نشده است</td></tr>';
-  }
-
-  // Pending receipts section
-  let pendingRowsHtml = '';
-  if (botState && botState.awaitingReceipts.size > 0) {
-    const entries = [...botState.awaitingReceipts.entries()];
-    pendingRowsHtml = entries.map(([userId, data]) => `
-      <tr class="border-t border-gray-800 hover:bg-gray-800/50">
-        <td class="px-4 py-3 text-sm font-mono">${userId}</td>
-        <td class="px-4 py-3 text-sm">${data.serverName || '-'}</td>
-        <td class="px-4 py-3 text-sm font-bold text-yellow-400">${data.amount ? data.amount.toLocaleString('fa-IR') + ' تومان' : '-'}</td>
-        <td class="px-4 py-3 text-sm text-gray-400">لطفاً از تلگرام رسید را بررسی کنید</td>
-      </tr>
-    `).join('');
-  }
-
-  const content = `
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h1 class="text-2xl font-bold">سفارشات</h1>
-        <p class="text-gray-500 text-sm mt-1">مدیریت تمام سفارشات ثبت‌شده</p>
-      </div>
-    </div>
-
-    <!-- Pending Receipts -->
-    ${botState && botState.awaitingReceipts.size > 0 ? `
-    <div class="bg-yellow-500/5 border border-yellow-500/20 rounded-2xl mb-6">
-      <div class="px-5 py-4 border-b border-yellow-500/20">
-        <h2 class="font-bold text-lg text-yellow-400">⏳ رسیدهای در انتظار بررسی (${botState.awaitingReceipts.size})</h2>
-        <p class="text-sm text-gray-400 mt-1">این کاربران رسید پرداخت فرستاده‌اند و منتظر تأیید شما هستند</p>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead class="bg-yellow-500/5 text-gray-400 text-sm">
-            <tr>
-              <th class="px-4 py-3 text-right">آیدی کاربر</th>
-              <th class="px-4 py-3 text-right">سرور</th>
-              <th class="px-4 py-3 text-right">مبلغ</th>
-              <th class="px-4 py-3 text-right">توضیح</th>
-            </tr>
-          </thead>
-          <tbody>${pendingRowsHtml}</tbody>
-        </table>
-      </div>
-    </div>
-    ` : ''}
-
-    <!-- All Orders -->
-    <div class="bg-gray-900 border border-gray-800 rounded-2xl">
-      <div class="px-5 py-4 border-b border-gray-800">
-        <h2 class="font-bold text-lg">همه سفارشات (${botState ? botState.userInvoices.size : 0})</h2>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead class="bg-gray-800/50 text-gray-400 text-sm">
-            <tr>
-              <th class="px-4 py-3 text-right">آیدی کاربر</th>
-              <th class="px-4 py-3 text-right">نام</th>
-              <th class="px-4 py-3 text-right">سرور</th>
-              <th class="px-4 py-3 text-right">حجم</th>
-              <th class="px-4 py-3 text-right">زمان</th>
-              <th class="px-4 py-3 text-right">مبلغ</th>
-              <th class="px-4 py-3 text-right">وضعیت</th>
-              <th class="px-4 py-3 text-right">عملیات</th>
-            </tr>
-          </thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
-      </div>
-    </div>
-
-    <script>
-      async function sendExpireNotify(userId) {
-        if (!confirm('آیا مطمئنید که می‌خواهید اعلان اتمام سرویس برای این کاربر ارسال شود؟')) return;
-        try {
-          const res = await fetch('/api/notify-expire/' + userId, { method: 'POST' });
-          const data = await res.json();
-          alert(data.message || 'انجام شد');
-        } catch(e) {
-          alert('خطا در ارسال اعلان');
-        }
-      }
-    </script>
-  `;
-
-  res.send(layout('سفارشات', '/orders', content));
+  const c=`<div class="ain" style="margin-bottom:28px"><h1 style="font-size:26px;font-weight:900;letter-spacing:-.5px">سفارشات</h1><p style="color:var(--t3);font-size:14px;margin-top:6px">مدیریت تمام سفارشات ثبت‌شده</p></div>
+  <div class="cd ain"><div class="cd-h"><div style="font-size:16px;font-weight:700">همه سفارشات <span style="color:var(--t3);font-size:13px;font-weight:500">(${botState?botState.userInvoices.size:0})</span></div></div><div class="cd-b" style="padding:0">${oT}</div></div>
+  <div class="mc ain" style="margin-top:16px">${oC}</div>
+  <script>async function ne(uid){if(!confirm('اعلان اتمام سرویس برای کاربر '+uid+' ارسال شود؟'))return;try{const r=await fetch('/api/notify-expire/'+uid,{method:'POST'});const d=await r.json();showToast(d.message||'انجام شد','ok')}catch(e){showToast('خطا در ارسال','er')}}</script>`;
+  res.send(layout('سفارشات','/orders',c));
 });
 
 // ═══════════════════════════════════════════
-//  USERS PAGE
+//  USERS
 // ═══════════════════════════════════════════
 app.get('/users', auth, (req, res) => {
-  let rowsHtml = '';
+  let uT='',uC='';
+  if (botState&&botState.seenUsers.size>0) {
+    const ids=[...botState.seenUsers];
+    uT=`<div class="tw"><table><thead><tr><th>آیدی عددی</th><th>نام</th><th>نوع</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>${ids.map(id=>{const inv=botState.userInvoices.get(id);const hp=botState.awaitingReceipts.has(id);return`<tr><td style="font-family:monospace;color:var(--t1)">${id}</td><td style="color:var(--t1)">${inv?(inv.userName||'-'):'-'}</td><td>${inv?'<span class="bdg bdg-ok">خریدار</span>':'<span class="bdg bdg-m">بازدیدکننده</span>'}</td><td>${hp?'<span class="bdg bdg-w">رسید در انتظار</span>':inv?'<span class="bdg bdg-ac">سفارش ثبت‌شده</span>':'<span class="bdg bdg-m">بدون سفارش</span>'}</td><td><a href="https://t.me/${id}" target="_blank" style="color:var(--accent2);text-decoration:none;font-size:13px">پیام →</a></td></tr>`}).join('')}</tbody></table></div>`;
+    uC=ids.map(id=>{const inv=botState.userInvoices.get(id);const hp=botState.awaitingReceipts.has(id);return`<div class="cr"><div class="cr-t"><span>${inv?(inv.userName||'کاربر'):'بازدیدکننده'}</span>${inv?'<span class="bdg bdg-ok">خریدار</span>':'<span class="bdg bdg-m">بازدید</span>'}</div><div class="cr-f"><span class="cr-l">آیدی</span><span class="cr-v" style="font-family:monospace">${id}</span></div><div class="cr-f"><span class="cr-l">وضعیت</span><span class="cr-v">${hp?'رسید در انتظار':inv?'سفارش ثبت‌شده':'بدون سفارش'}</span></div><div style="margin-top:10px"><a href="https://t.me/${id}" target="_blank" class="btn btn-g btn-s" style="width:100%;text-decoration:none">پیام به کاربر →</a></div></div>`}).join('');
+  } else { uT=uC='<div class="emp"><div class="emp-i">👥</div><p>هنوز کاربری وارد ربات نشده</p></div>'; }
 
-  if (botState && botState.seenUsers.size > 0) {
-    const userIds = [...botState.seenUsers];
-    rowsHtml = userIds.map(userId => {
-      const invoice = botState.userInvoices.get(userId);
-      const hasPending = botState.awaitingReceipts.has(userId);
-      return `
-      <tr class="border-t border-gray-800 hover:bg-gray-800/50 transition-colors">
-        <td class="px-4 py-3 text-sm font-mono">${userId}</td>
-        <td class="px-4 py-3 text-sm">${invoice ? (invoice.userName || '-') : '-'}</td>
-        <td class="px-4 py-3 text-sm">
-          ${invoice ? `<span class="text-green-400">خریدار</span>` : `<span class="text-gray-500">بازدیدکننده</span>`}
-        </td>
-        <td class="px-4 py-3 text-sm">
-          ${hasPending
-            ? '<span class="px-2 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400">رسید در انتظار</span>'
-            : invoice
-              ? '<span class="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400">سفارش ثبت‌شده</span>'
-              : '<span class="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400">بدون سفارش</span>'
-          }
-        </td>
-        <td class="px-4 py-3">
-          <a href="https://t.me/${userId}" target="_blank" class="text-blue-400 hover:text-blue-300 text-sm">پیام ❯</a>
-        </td>
-      </tr>`;
-    }).join('');
-  } else {
-    rowsHtml = '<tr><td colspan="5" class="px-4 py-12 text-center text-gray-500">هنوز کاربری وارد ربات نشده</td></tr>';
-  }
-
-  const content = `
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h1 class="text-2xl font-bold">کاربران</h1>
-        <p class="text-gray-500 text-sm mt-1">${botState ? botState.seenUsers.size : 0} کاربر در ربات</p>
-      </div>
-    </div>
-
-    <div class="bg-gray-900 border border-gray-800 rounded-2xl">
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead class="bg-gray-800/50 text-gray-400 text-sm">
-            <tr>
-              <th class="px-4 py-3 text-right">آیدی عددی</th>
-              <th class="px-4 py-3 text-right">نام</th>
-              <th class="px-4 py-3 text-right">نوع</th>
-              <th class="px-4 py-3 text-right">وضعیت</th>
-              <th class="px-4 py-3 text-right">عملیات</th>
-            </tr>
-          </thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
-      </div>
-    </div>
-  `;
-
-  res.send(layout('کاربران', '/users', content));
+  const c=`<div class="ain" style="margin-bottom:28px"><h1 style="font-size:26px;font-weight:900;letter-spacing:-.5px">کاربران</h1><p style="color:var(--t3);font-size:14px;margin-top:6px">${botState?botState.seenUsers.size:0} کاربر ثبت‌شده</p></div>
+  <div class="cd ain"><div class="cd-b" style="padding:0">${uT}</div></div>
+  <div class="mc ain" style="margin-top:16px">${uC}</div>`;
+  res.send(layout('کاربران','/users',c));
 });
 
 // ═══════════════════════════════════════════
-//  MARZBAN PAGE
+//  MARZBAN
 // ═══════════════════════════════════════════
 app.get('/marzban', auth, async (req, res) => {
-  let marzbanUsers = [];
-  let error = null;
-
-  if (!botState || !MARZBAN_URL || !MARZBAN_USERNAME || !MARZBAN_PASSWORD) {
-    error = 'تنظیمات مرزبان (MARZBAN_URL, MARZBAN_USERNAME, MARZBAN_PASSWORD) در متغیرهای محیطی تعریف نشده‌اند.';
+  let mu=[],error=null;
+  if (!botState||!MARZBAN_URL||!MARZBAN_USERNAME||!MARZBAN_PASSWORD) {
+    error='تنظیمات مرزبان در متغیرهای محیطی تعریف نشده‌اند.';
   } else {
     try {
-      const tokenResult = await botState.getMarzbanToken();
-      if (!tokenResult.ok) {
-        error = 'خطا در اتصال به مرزبان: ' + (tokenResult.error || 'نامشخص');
-      } else {
-        const fetch = require('node-fetch');
-        const baseUrl = MARZBAN_URL.replace(/\/dashboard\/?$/, '').replace(/\/$/, '');
-
-        // Try multiple endpoints for Marzban API compatibility
-        let apiRes = null;
-        const endpoints = ['/api/admin/users', '/api/admin/user', '/api/users'];
-        for (const ep of endpoints) {
-          apiRes = await fetch(`${baseUrl}${ep}?offset=0&limit=100`, {
-            headers: { Authorization: `Bearer ${tokenResult.token}` },
-          });
-          if (apiRes.ok) break;
+      const tk=await botState.getMarzbanToken();
+      if(!tk.ok){error='خطا در اتصال: '+(tk.error||'نامشخص');}
+      else{
+        const fetch=require('node-fetch');
+        const base=MARZBAN_URL.replace(/\/dashboard\/?$/,'').replace(/\/$/,'');
+        let r=null;
+        for(const ep of['/api/admin/users','/api/admin/user','/api/users']){
+          r=await fetch(`${base}${ep}?offset=0&limit=100`,{headers:{Authorization:`Bearer ${tk.token}`}});
+          if(r.ok)break;
         }
-
-        if (apiRes && apiRes.ok) {
-          const data = await apiRes.json();
-          marzbanUsers = data.users || data || [];
-          if (!Array.isArray(marzbanUsers)) marzbanUsers = [];
-        } else {
-          const status = apiRes ? apiRes.status : 'unknown';
-          error = `خطا در دریافت لیست کاربران: ${status} - احتمالاً نسخه مرزبان شما API لیست کاربران ندارد یا دسترسی ادمین کافی نیست.`;
-        }
+        if(r&&r.ok){const d=await r.json();mu=d.users||d||[];if(!Array.isArray(mu))mu=[];}
+        else{error=`خطا در دریافت لیست: ${r?r.status:'نامشخص'}`;}
       }
-    } catch (e) {
-      error = 'خطا در ارتباط با مرزبان: ' + e.message;
-    }
+    }catch(e){error='خطا در ارتباط: '+e.message;}
   }
 
-  let usersHtml = '';
-  if (error) {
-    usersHtml = `<tr><td colspan="6" class="px-4 py-8 text-center text-red-400">${error}</td></tr>`;
-  } else if (marzbanUsers.length === 0) {
-    usersHtml = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">کاربری در مرزبان یافت نشد</td></tr>';
-  } else {
-    usersHtml = marzbanUsers.map(u => {
-      const dataLimitGB = u.data_limit ? (u.data_limit / (1024 * 1024 * 1024)).toFixed(1) : 'نامحدود';
-      const usedGB = u.used_traffic ? (u.used_traffic / (1024 * 1024 * 1024)).toFixed(1) : '0';
-      const expiry = u.expire ? new Date(u.expire * 1000).toLocaleDateString('fa-IR') : 'نامحدود';
-      const isActive = u.is_active !== false && (!u.expire || u.expire * 1000 > Date.now());
-
-      return `
-      <tr class="border-t border-gray-800 hover:bg-gray-800/50 transition-colors">
-        <td class="px-4 py-3 text-sm font-mono">${u.username || '-'}</td>
-        <td class="px-4 py-3 text-sm">${usedGB} گیگ / ${dataLimitGB} گیگ</td>
-        <td class="px-4 py-3 text-sm">${expiry}</td>
-        <td class="px-4 py-3">
-          ${isActive
-            ? '<span class="px-2 py-1 text-xs rounded-full bg-green-500/20 text-green-400">فعال</span>'
-            : '<span class="px-2 py-1 text-xs rounded-full bg-red-500/20 text-red-400">غیرفعال</span>'
-          }
-        </td>
-        <td class="px-4 py-3 text-sm">${u.proxies ? Object.keys(u.proxies).join(', ') : '-'}</td>
-        <td class="px-4 py-3 text-sm font-mono text-xs">${u.subscription_url ? `<a href="${u.subscription_url}" target="_blank" class="text-blue-400 hover:text-blue-300">لینک ❯</a>` : '-'}</td>
-      </tr>`;
-    }).join('');
+  let mT='',mC='';
+  if(error){mT=mC=`<div class="emp"><div class="emp-i">⚠️</div><p style="color:var(--err)">${error}</p></div>`;}
+  else if(mu.length===0){mT=mC='<div class="emp"><div class="emp-i">🔌</div><p>کاربری در مرزبان یافت نشد</p></div>';}
+  else{
+    mT=`<div class="tw"><table><thead><tr><th>یوزرنیم</th><th>مصرف / حجم</th><th>انقضا</th><th>وضعیت</th><th>پروتکل</th><th>لینک</th></tr></thead><tbody>${mu.map(u=>{const dl=u.data_limit?(u.data_limit/(1024**3)).toFixed(1):'∞';const ul=u.used_traffic?(u.used_traffic/(1024**3)).toFixed(1):'0';const ex=u.expire?new Date(u.expire*1000).toLocaleDateString('fa-IR'):'∞';const on=u.is_active!==false&&(!u.expire||u.expire*1000>Date.now());return`<tr><td style="font-family:monospace;color:var(--t1);font-size:13px">${u.username||'-'}</td><td><span style="color:${parseFloat(ul)>parseFloat(dl)*.8?'var(--err)':'var(--t1)'}">${ul}</span> / ${dl} گیگ</td><td>${ex}</td><td>${on?'<span class="bdg bdg-ok">فعال</span>':'<span class="bdg bdg-e">غیرفعال</span>'}</td><td style="font-size:12px">${u.proxies?Object.keys(u.proxies).map(p=>p.toUpperCase()).join(', '):'-'}</td><td>${u.subscription_url?`<a href="${u.subscription_url}" target="_blank" style="color:var(--accent2);text-decoration:none;font-size:13px">لینک →</a>`:'—'}</td></tr>`}).join('')}</tbody></table></div>`;
+    mC=mu.map(u=>{const dl=u.data_limit?(u.data_limit/(1024**3)).toFixed(1):'∞';const ul=u.used_traffic?(u.used_traffic/(1024**3)).toFixed(1):'0';const ex=u.expire?new Date(u.expire*1000).toLocaleDateString('fa-IR'):'∞';const on=u.is_active!==false&&(!u.expire||u.expire*1000>Date.now());return`<div class="cr"><div class="cr-t"><span style="font-family:monospace;font-size:14px">${u.username||'-'}</span>${on?'<span class="bdg bdg-ok">فعال</span>':'<span class="bdg bdg-e">غیرفعال</span>'}</div><div class="cr-f"><span class="cr-l">مصرف</span><span class="cr-v">${ul} / ${dl} گیگ</span></div><div class="cr-f"><span class="cr-l">انقضا</span><span class="cr-v">${ex}</span></div><div class="cr-f"><span class="cr-l">پروتکل</span><span class="cr-v">${u.proxies?Object.keys(u.proxies).map(p=>p.toUpperCase()).join(', '):'-'}</span></div>${u.subscription_url?`<div style="margin-top:10px"><a href="${u.subscription_url}" target="_blank" class="btn btn-g btn-s" style="width:100%;text-decoration:none">🔗 لینک اشتراک</a></div>`:''}</div>`}).join('');
   }
 
-  const content = `
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h1 class="text-2xl font-bold">مرزبان</h1>
-        <p class="text-gray-500 text-sm mt-1">مدیریت کاربران VPN پنل مرزبان</p>
-      </div>
-      <div class="flex items-center gap-2 text-sm ${MARZBAN_URL ? 'text-green-400' : 'text-red-400'}">
-        <span class="w-2 h-2 rounded-full ${MARZBAN_URL ? 'bg-green-500' : 'bg-red-500'}"></span>
-        ${MARZBAN_URL ? 'متصل به مرزبان' : 'تنظیم نشده'}
-      </div>
-    </div>
-
-    <div class="bg-gray-900 border border-gray-800 rounded-2xl">
-      <div class="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
-        <h2 class="font-bold text-lg">کاربران مرزبان (${marzbanUsers.length})</h2>
-        <a href="/marzban" class="text-sm text-blue-400 hover:text-blue-300">🔄 بروزرسانی</a>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead class="bg-gray-800/50 text-gray-400 text-sm">
-            <tr>
-              <th class="px-4 py-3 text-right">یوزرنیم</th>
-              <th class="px-4 py-3 text-right">مصرف / حجم</th>
-              <th class="px-4 py-3 text-right">تاریخ انقضا</th>
-              <th class="px-4 py-3 text-right">وضعیت</th>
-              <th class="px-4 py-3 text-right">پروتکل‌ها</th>
-              <th class="px-4 py-3 text-right">لینک اشتراک</th>
-            </tr>
-          </thead>
-          <tbody>${usersHtml}</tbody>
-        </table>
-      </div>
-    </div>
-  `;
-
-  res.send(layout('مرزبان', '/marzban', content));
+  const c=`<div class="ain" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:28px"><div><h1 style="font-size:26px;font-weight:900;letter-spacing:-.5px">مرزبان</h1><p style="color:var(--t3);font-size:14px;margin-top:6px">مدیریت کاربران VPN</p></div><div style="display:flex;gap:8px;align-items:center">${MARZBAN_URL?'<span class="bdg bdg-ok">● متصل</span>':'<span class="bdg bdg-e">● قطع</span>'}<a href="/marzban" class="btn btn-g btn-s" style="text-decoration:none">🔄 بروزرسانی</a></div></div>
+  <div class="cd ain"><div class="cd-h"><div style="font-size:16px;font-weight:700">کاربران VPN <span style="color:var(--t3);font-size:13px;font-weight:500">(${mu.length})</span></div></div><div class="cd-b" style="padding:0">${mT}</div></div>
+  <div class="mc ain" style="margin-top:16px">${mC}</div>`;
+  res.send(layout('مرزبان','/marzban',c));
 });
 
 // ═══════════════════════════════════════════
-//  SETTINGS PAGE
+//  SETTINGS
 // ═══════════════════════════════════════════
 app.get('/settings', auth, (req, res) => {
-  const content = `
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h1 class="text-2xl font-bold">تنظیمات</h1>
-        <p class="text-gray-500 text-sm mt-1">تنظیمات ربات و پنل</p>
-      </div>
+  const c=`<div class="ain" style="margin-bottom:28px"><h1 style="font-size:26px;font-weight:900;letter-spacing:-.5px">تنظیمات</h1><p style="color:var(--t3);font-size:14px;margin-top:6px">پیکربندی ربات، قیمت‌ها و اتصالات</p></div>
+  <form id="sf" class="ain">
+    <div class="sec">💰 قیمت‌ها</div>
+    <div class="cd" style="margin-bottom:24px"><div class="cd-b"><div class="fr" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+      <div class="fg"><label class="fl">قیمت ۲۰ گیگ (تومان)</label><input type="number" name="price_20" class="inp" value="${process.env.ALL_SERVERS_PRICE_20||''}" placeholder="مثلاً 60000"></div>
+      <div class="fg"><label class="fl">قیمت ۱۰ گیگ (تومان)</label><input type="number" name="price_10" class="inp" value="${process.env.ALL_SERVERS_PRICE_10||''}" placeholder="مثلاً 40000"></div>
+      <div class="fg"><label class="fl">قیمت ۵ گیگ (تومان)</label><input type="number" name="price_5" class="inp" value="${process.env.ALL_SERVERS_PRICE_5||''}" placeholder="مثلاً 20000"></div>
+    </div></div></div>
+
+    <div class="sec">💳 پرداخت و کانال</div>
+    <div class="cd" style="margin-bottom:24px"><div class="cd-b"><div class="fr" style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px">
+      <div class="fg"><label class="fl">شماره کارت</label><input type="text" name="card_number" class="inp" value="${CARD_NUMBER}" placeholder="0000-0000-0000-0000" style="font-family:monospace;letter-spacing:1px"></div>
+      <div class="fg"><label class="fl">نام کانال</label><input type="text" name="channel" class="inp" value="${botState?botState.getChannelUsername():''}" placeholder="@channel_name"></div>
+      <div class="fg"><label class="fl">عضویت اجباری</label><select name="membership_required" class="sel"><option value="true" ${botState&&botState.getMembershipRequired()?'selected':''}>فعال</option><option value="false" ${botState&&!botState.getMembershipRequired()?'selected':''}>غیرفعال</option></select></div>
+      <div class="fg"><label class="fl">آیدی ادمین</label><input type="text" name="admin_id" class="inp" value="${process.env.ADMIN_ID||''}" placeholder="123456789"></div>
+    </div></div></div>
+
+    <div class="sec">🔌 مرزبان</div>
+    <div class="cd" style="margin-bottom:24px"><div class="cd-b"><div class="fr" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+      <div class="fg"><label class="fl">آدرس پنل</label><input type="text" name="marzban_url" class="inp" value="${MARZBAN_URL}" placeholder="https://panel.com/dashboard" style="font-size:13px"></div>
+      <div class="fg"><label class="fl">یوزرنیم</label><input type="text" name="marzban_username" class="inp" value="${MARZBAN_USERNAME}" placeholder="admin"></div>
+      <div class="fg"><label class="fl">پسورد</label><input type="password" name="marzban_password" class="inp" value="${MARZBAN_PASSWORD}" placeholder="••••••••"></div>
+    </div></div></div>
+
+    <div class="sec">🔒 امنیت پنل</div>
+    <div class="cd" style="margin-bottom:32px"><div class="cd-b"><div class="fr" style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px">
+      <div class="fg"><label class="fl">رمز عبور پنل</label><input type="password" name="admin_password" class="inp" value="${ADMIN_PASSWORD}" placeholder="رمز جدید"></div>
+    </div></div></div>
+
+    <div style="display:flex;justify-content:flex-end;gap:12px">
+      <button type="submit" class="btn btn-p" style="padding:12px 32px">💾 ذخیره تنظیمات</button>
     </div>
-
-    <form id="settingsForm" class="space-y-6">
-      <!-- Prices -->
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-        <h2 class="font-bold text-lg mb-4">💰 قیمت‌ها</h2>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">قیمت ۲۰ گیگ (تومان)</label>
-            <input type="number" name="price_20" value="${process.env.ALL_SERVERS_PRICE_20 || ''}"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500">
-          </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">قیمت ۱۰ گیگ (تومان)</label>
-            <input type="number" name="price_10" value="${process.env.ALL_SERVERS_PRICE_10 || ''}"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500">
-          </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">قیمت ۵ گیگ (تومان)</label>
-            <input type="number" name="price_5" value="${process.env.ALL_SERVERS_PRICE_5 || ''}"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500">
-          </div>
-        </div>
-      </div>
-
-      <!-- Payment -->
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-        <h2 class="font-bold text-lg mb-4">💳 اطلاعات پرداخت</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">شماره کارت</label>
-            <input type="text" name="card_number" value="${CARD_NUMBER}"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 font-mono">
-          </div>
-        </div>
-      </div>
-
-      <!-- Channel -->
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-        <h2 class="font-bold text-lg mb-4">📢 کانال تلگرام</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">نام کانال</label>
-            <input type="text" name="channel" value="${botState ? botState.getChannelUsername() : ''}"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500">
-          </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">عضویت اجباری</label>
-            <select name="membership_required"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500">
-              <option value="true" ${botState && botState.getMembershipRequired() ? 'selected' : ''}>فعال</option>
-              <option value="false" ${botState && !botState.getMembershipRequired() ? 'selected' : ''}>غیرفعال</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <!-- Admin -->
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-        <h2 class="font-bold text-lg mb-4">👤 مدیریت</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">آیدی ادمین</label>
-            <input type="text" name="admin_id" value="${process.env.ADMIN_ID || ''}"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500">
-          </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">آیدی پشتیبانی</label>
-            <input type="text" name="support_url" value="${process.env.SUPPORT_WEBAPP_URL || ''}"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500">
-          </div>
-        </div>
-      </div>
-
-      <!-- Marzban -->
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-        <h2 class="font-bold text-lg mb-4">🔌 تنظیمات مرزبان</h2>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">آدرس پنل</label>
-            <input type="text" name="marzban_url" value="${MARZBAN_URL}"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 font-mono text-sm">
-          </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">یوزرنیم</label>
-            <input type="text" name="marzban_username" value="${MARZBAN_USERNAME}"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500">
-          </div>
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">پسورد</label>
-            <input type="password" name="marzban_password" value="${MARZBAN_PASSWORD}"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500">
-          </div>
-        </div>
-      </div>
-
-      <!-- Panel Security -->
-      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-        <h2 class="font-bold text-lg mb-4">🔒 امنیت پنل</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm text-gray-400 mb-2">رمز عبور پنل</label>
-            <input type="password" name="admin_password" value="${ADMIN_PASSWORD}"
-              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500">
-          </div>
-        </div>
-      </div>
-
-      <div class="flex justify-end">
-        <button type="submit"
-          class="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8 py-3 rounded-xl font-bold hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg shadow-blue-500/20">
-          💾 ذخیره تنظیمات
-        </button>
-      </div>
-    </form>
-
-    <div id="settingsMessage" class="hidden fixed top-4 left-1/2 -translate-x-1/2 bg-green-500 text-white px-6 py-3 rounded-xl shadow-lg z-50">
-      تنظیمات با موفقیت ذخیره شد!
-    </div>
-
-    <script>
-      document.getElementById('settingsForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const data = Object.fromEntries(formData);
-        try {
-          const res = await fetch('/api/settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data),
-          });
-          if (res.ok) {
-            const msg = document.getElementById('settingsMessage');
-            msg.classList.remove('hidden');
-            setTimeout(() => msg.classList.add('hidden'), 3000);
-          }
-        } catch(err) {
-          alert('خطا در ذخیره تنظیمات');
-        }
-      });
-    </script>
-  `;
-
-  res.send(layout('تنظیمات', '/settings', content));
+  </form>
+  <script>
+    document.getElementById('sf').addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.target);const d=Object.fromEntries(fd);try{const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});if(r.ok)showToast('تنظیمات ذخیره شد ✅','ok');else showToast('خطا در ذخیره','er')}catch(err){showToast('خطا در ارتباط','er')}});
+  </script>`;
+  res.send(layout('تنظیمات','/settings',c));
 });
 
 // ═══════════════════════════════════════════
-//  API ENDPOINTS
+//  API
 // ═══════════════════════════════════════════
 app.post('/api/notify-expire/:userId', auth, async (req, res) => {
-  const userId = Number(req.params.userId);
-  if (!userId) return res.status(400).json({ error: 'Invalid userId' });
-
-  if (!botState) return res.status(500).json({ error: 'Bot not loaded' });
-
-  try {
-    await botState.bot.sendMessage(
-      userId,
-      'کاربر عزیز، سرویس/کانفیگت به پایان رسیده (اتمام زمان یا حجم). اگر می‌خوای همون سرویس رو تمدید کنی، روی دکمه زیر بزن.',
-      {
-        reply_markup: {
-          inline_keyboard: [[{ text: 'تمدید همین کانفیگ 🔁', callback_data: `renew_all_${userId}` }]],
-        },
-      }
-    );
-    res.json({ message: 'اعلان با موفقیت ارسال شد ✅' });
-  } catch (e) {
-    res.json({ message: 'خطا در ارسال اعلان: ' + e.message });
-  }
+  const uid=Number(req.params.userId);
+  if(!uid||!botState)return res.json({message:'خطا'});
+  try{
+    await botState.bot.sendMessage(uid,'کاربر عزیز، سرویست به پایان رسیده. برای تمدید روی دکمه بزن.',{reply_markup:{inline_keyboard:[[{text:'تمدید 🔁',callback_data:`renew_all_${uid}`}]]}});
+    res.json({message:'اعلان ارسال شد ✅'});
+  }catch(e){res.json({message:'خطا: '+e.message});}
 });
 
 app.post('/api/settings', auth, (req, res) => {
-  // Note: These changes are temporary (in-memory) for the current process.
-  // For permanent changes, user should update Railway environment variables.
-  const data = req.body;
-
-  // Update bot state if available
-  if (botState && data.channel) {
-    // Note: currentChannelUsername is a let variable, we can't set it from here
-    // The user needs to restart the bot or change it via Telegram admin panel
-  }
-
-  res.json({ message: 'تنظیمات در حافظه بروزرسانی شد. برای تغییرات دائمی، متغیرهای Railway رو ویرایش کنید.'});
+  res.json({message:'بروزرسانی شد. برای تغییرات دائمی Railway رو ویرایش کنید.'});
 });
 
 app.get('/api/stats', auth, (req, res) => {
-  if (!botState) return res.json({ users: 0, orders: 0, pending: 0 });
-  res.json({
-    users: botState.seenUsers.size,
-    orders: botState.userInvoices.size,
-    pending: botState.awaitingReceipts.size,
-    channel: botState.getChannelUsername(),
-    membershipRequired: botState.getMembershipRequired(),
-  });
+  if(!botState)return res.json({users:0,orders:0,pending:0});
+  res.json({users:botState.seenUsers.size,orders:botState.userInvoices.size,pending:botState.awaitingReceipts.size,channel:botState.getChannelUsername()});
 });
 
-// ═══════════════════════════════════════════
-//  HEALTH CHECK (for Railway)
-// ═══════════════════════════════════════════
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    bot: botState ? 'running' : 'not loaded',
-    uptime: process.uptime(),
-  });
+  res.json({status:'ok',bot:botState?'running':'not loaded',uptime:process.uptime()});
 });
 
 // ═══════════════════════════════════════════
-//  START SERVER
+//  START
 // ═══════════════════════════════════════════
 function startServer(exports) {
   botState = exports;
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🌐 VorteX Web Panel running on http://0.0.0.0:${PORT}`);
-    console.log(`📡 Health check: http://0.0.0.0:${PORT}/health`);
-    console.log(`🔑 Default password: ${ADMIN_PASSWORD}\n`);
+    console.log(`\n  🌐 VorteX Panel: http://0.0.0.0:${PORT}`);
+    console.log(`  🔑 Password: ${ADMIN_PASSWORD}\n`);
   });
 }
 
