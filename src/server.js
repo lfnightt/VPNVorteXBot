@@ -526,15 +526,24 @@ app.get('/marzban', auth, async (req, res) => {
       } else {
         const fetch = require('node-fetch');
         const baseUrl = MARZBAN_URL.replace(/\/dashboard\/?$/, '').replace(/\/$/, '');
-        const apiRes = await fetch(`${baseUrl}/api/user`, {
-          headers: { Authorization: `Bearer ${tokenResult.token}` },
-        });
-        if (apiRes.ok) {
+
+        // Try multiple endpoints for Marzban API compatibility
+        let apiRes = null;
+        const endpoints = ['/api/admin/users', '/api/admin/user', '/api/users'];
+        for (const ep of endpoints) {
+          apiRes = await fetch(`${baseUrl}${ep}?offset=0&limit=100`, {
+            headers: { Authorization: `Bearer ${tokenResult.token}` },
+          });
+          if (apiRes.ok) break;
+        }
+
+        if (apiRes && apiRes.ok) {
           const data = await apiRes.json();
           marzbanUsers = data.users || data || [];
           if (!Array.isArray(marzbanUsers)) marzbanUsers = [];
         } else {
-          error = `خطا در دریافت لیست کاربران: ${apiRes.status}`;
+          const status = apiRes ? apiRes.status : 'unknown';
+          error = `خطا در دریافت لیست کاربران: ${status} - احتمالاً نسخه مرزبان شما API لیست کاربران ندارد یا دسترسی ادمین کافی نیست.`;
         }
       }
     } catch (e) {
