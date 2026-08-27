@@ -96,16 +96,16 @@ function layout(title, activePage, bodyHtml) {
     .app{display:flex;min-height:100vh;min-height:100dvh}
 
     /* Sidebar */
-    .sb{position:fixed;right:0;top:0;width:var(--sb);height:100vh;height:100dvh;background:linear-gradient(180deg,#0c0c1a 0%,#0f0f24 50%,#0c0c1a 100%);border-left:1px solid rgba(108,92,231,.1);display:flex;flex-direction:column;z-index:100;transition:transform .4s cubic-bezier(.16,1,.3,1);overflow:hidden}
-    .sb::before{content:'';position:absolute;top:0;left:0;right:0;height:200px;background:radial-gradient(ellipse at top right,rgba(108,92,231,.08),transparent 70%);pointer-events:none}
-    .sb::after{content:'';position:absolute;bottom:0;left:0;right:0;height:200px;background:radial-gradient(ellipse at bottom left,rgba(168,85,247,.05),transparent 70%);pointer-events:none}
-    .sb-hd{padding:24px 20px 20px;border-bottom:1px solid rgba(108,92,231,.08);position:relative;z-index:1}
-    .sb-nav{flex:1;padding:16px 12px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;position:relative;z-index:1}
+    .sb{position:fixed;right:12px;top:12px;bottom:12px;width:var(--sb);background:linear-gradient(180deg,rgba(14,14,30,.97) 0%,rgba(16,16,36,.97) 50%,rgba(14,14,30,.97) 100%);border:1px solid rgba(108,92,231,.12);border-radius:20px;display:flex;flex-direction:column;z-index:100;transition:transform .4s cubic-bezier(.16,1,.3,1);overflow:hidden;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 8px 40px rgba(0,0,0,.4),0 0 0 1px rgba(108,92,231,.05),inset 0 1px 0 rgba(255,255,255,.03)}
+    .sb::before{content:'';position:absolute;top:0;left:0;right:0;height:180px;background:radial-gradient(ellipse at top right,rgba(108,92,231,.1),transparent 70%);pointer-events:none;border-radius:20px 20px 0 0}
+    .sb::after{content:'';position:absolute;bottom:0;left:0;right:0;height:120px;background:radial-gradient(ellipse at bottom left,rgba(168,85,247,.06),transparent 70%);pointer-events:none;border-radius:0 0 20px 20px}
+    .sb-hd{padding:24px 20px 18px;border-bottom:1px solid rgba(108,92,231,.08);position:relative;z-index:1}
+    .sb-nav{flex:1;padding:14px 10px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;position:relative;z-index:1}
     .sb-nav::-webkit-scrollbar{width:3px}
     .sb-nav::-webkit-scrollbar-thumb{background:rgba(108,92,231,.2);border-radius:10px}
-    .sb-ft{padding:16px 12px;border-top:1px solid rgba(108,92,231,.08);position:relative;z-index:1}
+    .sb-ft{padding:14px 10px;border-top:1px solid rgba(108,92,231,.08);position:relative;z-index:1}
 
-    .main{flex:1;margin-right:var(--sb);padding:24px;min-height:100vh;min-height:100dvh}
+    .main{flex:1;margin-right:calc(var(--sb) + 24px);padding:24px;min-height:100vh;min-height:100dvh}
 
     /* Bottom Nav */
     .bn{display:none;position:fixed;bottom:0;left:0;right:0;height:var(--bn);background:rgba(13,13,24,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);z-index:100;padding:0 8px;padding-bottom:env(safe-area-inset-bottom,0)}
@@ -197,7 +197,8 @@ function layout(title, activePage, bodyHtml) {
 
     @media(max-width:1024px){.g4,.g3{grid-template-columns:repeat(2,1fr)}}
     @media(max-width:768px){
-      .sb{transform:translateX(100%)}.sb.open{transform:translateX(0)}
+      .sb{transform:translateX(calc(100% + 24px));top:8px;bottom:8px;right:8px;width:calc(100% - 16px);max-width:320px;border-radius:20px}
+      .sb.open{transform:translateX(0)}
       .ov{display:block}.mh{display:flex}.mt{display:block}
       .main{margin-right:0;padding:0 16px 96px 16px}
       .bn{display:block}
@@ -255,7 +256,7 @@ function layout(title, activePage, bodyHtml) {
         </div>
 
         <!-- Logout -->
-        <a href="/logout" style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-radius:12px;font-size:13px;font-weight:500;color:#6a6a8a;text-decoration:none;border:1px solid transparent;transition:all .25s ease;"
+        <a href="/logout" style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-radius:12px;font-size:13px;font-weight:500;color:#6a6a8a;text-decoration:none;border:1px solid transparent;transition:all .25s ease;margin-bottom:4px;"
           onmouseenter="this.style.background='rgba(255,107,107,.06)';this.style.color='#ff6b6b';this.style.borderColor='rgba(255,107,107,.12)';"
           onmouseleave="this.style.background='';this.style.color='#6a6a8a';this.style.borderColor='transparent';">
           <span style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:rgba(255,107,107,.06);flex-shrink:0;">
