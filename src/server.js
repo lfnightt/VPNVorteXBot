@@ -57,10 +57,15 @@ function layout(title, activePage, bodyHtml) {
 
   const bottomNavHtml = NAV.map(item => {
     const active = activePage === item.href;
-    return `<a href="${item.href}" class="flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition-all ${active ? 'text-indigo-400' : 'text-gray-500'}">
-      <span class="${active ? 'drop-shadow-[0_0_6px_rgba(129,140,248,0.5)]' : ''}">${item.icon}</span>
-      <span class="text-[10px] font-medium">${item.label}</span>
-      ${active ? '<span class="w-4 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full mt-0.5"></span>' : ''}
+    return `<a href="${item.href}" style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 12px;border-radius:12px;text-decoration:none;transition:all .25s ease;min-width:56px;${active
+      ? 'background:linear-gradient(135deg,rgba(108,92,231,.2),rgba(168,85,247,.15));color:#a29bfe;box-shadow:0 2px 12px rgba(108,92,231,.2);'
+      : 'color:#5a5a7a;'}"
+      onmouseenter="if(this.style.color!=='rgb(162, 155, 254)'){this.style.background='rgba(255,255,255,.04)';this.style.color='#8a8aaa';}"
+      onmouseleave="if(this.style.color!=='rgb(162, 155, 254)'){this.style.background='';this.style.color='#5a5a7a';}">
+      <span style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:10px;transition:all .25s ease;${active
+        ? 'background:linear-gradient(135deg,#6c5ce7,#a855f7);color:#fff;box-shadow:0 2px 10px rgba(108,92,231,.4);'
+        : 'background:rgba(255,255,255,.04);color:#5a5a7a;'}">${item.icon}</span>
+      <span style="font-size:10px;font-weight:${active?'700':'500'};${active?'color:#a29bfe;':''}">${item.label}</span>
     </a>`;
   }).join('');
 
@@ -105,24 +110,23 @@ function layout(title, activePage, bodyHtml) {
     .sb-nav::-webkit-scrollbar-thumb{background:rgba(108,92,231,.2);border-radius:10px}
     .sb-ft{padding:14px 10px;border-top:1px solid rgba(108,92,231,.08);position:relative;z-index:1}
 
-    .main{flex:1;margin-right:calc(var(--sb) + 24px);padding:24px;min-height:100vh;min-height:100dvh;direction:ltr;overflow-y:auto}
-    .main>*{direction:rtl}
+    .main{flex:1;margin-right:calc(var(--sb) + 24px);padding:24px;min-height:100vh;min-height:100dvh}
     .main::-webkit-scrollbar{width:5px}
     .main::-webkit-scrollbar-track{background:transparent;margin:8px 0}
     .main::-webkit-scrollbar-thumb{background:rgba(108,92,231,.2);border-radius:10px}
     .main::-webkit-scrollbar-thumb:hover{background:rgba(108,92,231,.35)}
+    .main{scrollbar-color:rgba(108,92,231,.2) transparent;scrollbar-width:thin}
 
     /* Bottom Nav */
-    .bn{display:none;position:fixed;bottom:0;left:0;right:0;height:var(--bn);background:rgba(13,13,24,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid var(--border);z-index:100;padding:0 8px;padding-bottom:env(safe-area-inset-bottom,0)}
-    .bn-in{display:flex;align-items:center;justify-content:space-around;height:100%;max-width:500px;margin:0 auto}
+    .bn{display:none;position:fixed;bottom:0;left:0;right:0;height:auto;background:rgba(10,10,22,.92);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid rgba(108,92,231,.1);z-index:100;padding:8px 12px;padding-bottom:calc(8px + env(safe-area-inset-bottom,0));box-shadow:0 -4px 30px rgba(0,0,0,.4)}
+    .bn-in{display:flex;align-items:center;justify-content:space-around;max-width:500px;margin:0 auto;background:rgba(255,255,255,.04);border-radius:16px;padding:6px 4px;border:1px solid rgba(255,255,255,.04)}
 
     /* Overlay */
     .ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:99;opacity:0;transition:opacity .3s}
     .ov.on{opacity:1}
 
     .mt{display:none;position:fixed;top:0;left:0;right:0;z-index:50;padding:16px 60px 16px 16px;background:rgba(7,7,14,.8);backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}
-    .mh{display:none;position:fixed;top:16px;right:16px;width:44px;height:44px;background:var(--card);border:1px solid var(--border);border-radius:12px;align-items:center;justify-content:center;z-index:101;cursor:pointer;color:var(--t1);transition:all .2s}
-    .mh:active{transform:scale(.92)}
+    .mh{display:none}
 
     /* Card */
     .cd{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;transition:all .3s}
@@ -204,8 +208,8 @@ function layout(title, activePage, bodyHtml) {
     @media(max-width:768px){
       .sb{transform:translateX(calc(100% + 24px));top:8px;bottom:8px;right:8px;width:calc(100% - 16px);max-width:320px;border-radius:20px}
       .sb.open{transform:translateX(0)}
-      .ov{display:block}.mh{display:flex}.mt{display:block}
-      .main{margin-right:0;padding:0 16px 96px 16px}
+      .ov{display:block}
+      .main{margin-right:0;padding:16px 16px 100px 16px}
       .bn{display:block}
       .g4,.g3,.g2{grid-template-columns:1fr}
       .do{display:none!important}.mc{display:block}.tw{display:none}
@@ -219,9 +223,6 @@ function layout(title, activePage, bodyHtml) {
   </style>
 </head>
 <body>
-  <button class="mh" onclick="toggleSb()" aria-label="منو">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-  </button>
   <div class="mt"><h1 style="font-size:16px;font-weight:800;background:linear-gradient(135deg,#a29bfe,#6c5ce7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">VorteX Panel</h1></div>
   <div class="ov" id="ov" onclick="toggleSb()"></div>
   <div class="app">
