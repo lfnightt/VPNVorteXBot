@@ -1,0 +1,21 @@
+{
+  "name": "telegram-channel-bot",
+  "version": "1.0.0",
+  "description": "Simple Telegram bot that asks user to join a channel and checks membership",
+  "main": "src/bot.js",
+  "scripts": {
+    "start": "node src/bot.js"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "nodejs"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "node-telegram-bot-api": "^0.64.0",
+    "node-fetch": "^2.7.0"
+  }
+}
