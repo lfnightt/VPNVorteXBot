@@ -22,8 +22,12 @@ const MARZBAN_PASSWORD = process.env.MARZBAN_PASSWORD || '';
 
 if (!BOT_TOKEN) { console.error('BOT_TOKEN not set'); process.exit(1); }
 
+// ─── Anti-crash: catch all unhandled errors ───
+process.on('uncaughtException', (err) => { console.error('⚠️ Uncaught:', err.message); });
+process.on('unhandledRejection', (err) => { console.error('⚠️ Unhandled:', err?.message || err); });
+
 // ─── Bot ───
-const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+const bot = new TelegramBot(BOT_TOKEN, { polling: { interval: 1000 } });
 
 // ─── State ───
 const seenUsers = new Set();
@@ -106,6 +110,25 @@ function toPersianDigits(n) { return String(n).replace(/\d/g, d => '۰۱۲۳۴۵
 function toPersianNumber(n) { return toPersianDigits(n.toLocaleString('en-US')); }
 function getPersianDate() { return new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: 'long', day: 'numeric' }); }
 function isAdmin(userId) { return ADMIN_ID && userId === ADMIN_ID; }
+
+// ─── Safe bot API wrappers ───
+const processingUsers = new Set();
+function isProcessing(userId) { return processingUsers.has(userId); }
+function markProcessing(userId) { processingUsers.add(userId); }
+function unmarkProcessing(userId) { processingUsers.delete(userId); }
+
+async function safeSend(chatId, text, opts = {}) {
+  try { return await bot.sendMessage(chatId, text, opts); } catch (e) { console.error(`❌ sendMessage(${chatId}):`, e.message); return null; }
+}
+async function safeEdit(chatId, msgId, text, opts = {}) {
+  try { return await bot.editMessageText(text, { chat_id: chatId, message_id: msgId, ...opts }); } catch (e) { return null; }
+}
+async function safeAnswer(queryId, opts = {}) {
+  try { return await safeAnswer(queryId, opts); } catch { return null; }
+}
+async function safePhoto(chatId, photoId, opts = {}) {
+  try { return await bot.sendPhoto(chatId, photoId, opts); } catch (e) { console.error(`❌ sendPhoto(${chatId}):`, e.message); return null; }
+}
 
 async function isUserChannelMember(userId) {
   try {
@@ -190,10 +213,14 @@ function adminPanelKB() {
 //  /start HANDLER
 // ═══════════════════════════════════════════
 bot.onText(/\/start/, async (msg) => {
+  if (msg.chat.type !== 'private') return;
   const userId = msg.from.id;
   const firstName = msg.from.first_name || '';
   const username = msg.from.username || '';
+  if (isProcessing(userId)) return;
+  markProcessing(userId);
 
+  try {
   const isFirstTime = !seenUsers.has(userId);
   if (isFirstTime) {
     seenUsers.add(userId);
@@ -207,7 +234,7 @@ bot.onText(/\/start/, async (msg) => {
       const v = membershipPromptVersion;
       if (userMembershipPromptVersion.get(userId) !== v) {
         userMembershipPromptVersion.set(userId, v);
-        await bot.sendMessage(userId,
+        await safeSend(userId,
           `⚡ VorteX VPN\n\n` +
           `برای استفاده از ربات، ابتدا عضو کانال زیر بشو:\n\n` +
           `📢 ${currentChannelUsername}\n\n` +
@@ -236,18 +263,25 @@ bot.onText(/\/start/, async (msg) => {
       `خوش برگشتی <b>${firstName}</b>! 🎉\n\n` +
       `از منوی پایین می‌تونی خرید کنی یا سرویست رو مدیریت کنی 👇`;
 
-  await bot.sendMessage(userId, welcomeText, { parse_mode: 'HTML', ...mainMenuKB(userId) });
+  await safeSend(userId, welcomeText, { parse_mode: 'HTML', ...mainMenuKB(userId) });
+  } catch (e) { console.error('Start error:', e.message); }
+  finally { unmarkProcessing(userId); }
 });
 
 // ═══════════════════════════════════════════
 //  MESSAGE HANDLER
 // ═══════════════════════════════════════════
 bot.on('message', async (msg) => {
+  if (msg.chat.type !== 'private') return;
   if (msg.from?.is_bot) return;
   const userId = msg.from?.id;
   const chatId = msg.chat.id;
   const text = msg.text;
-  if (!userId || !text) return;
+  if (!userId) return;
+  if (isProcessing(userId)) return;
+  markProcessing(userId);
+
+  try {
 
   // ─── Receipt Photo ───
   if (msg.photo && awaitingReceipts.has(userId)) {
@@ -256,7 +290,7 @@ bot.on('message', async (msg) => {
     db.removeAwaitingReceipt(userId);
 
     const adminChatId = ADMIN_ID;
-    if (!adminChatId) return bot.sendMessage(chatId, '⚠️ ادمین تنظیم نشده. با پشتیبانی تماس بگیرید.');
+    if (!adminChatId) { await safeSend(chatId, '⚠️ ادمین تنظیم نشده.'); return; }
 
     const caption =
       `📬 <b>رسید جدید</b>\n` +
@@ -267,7 +301,7 @@ bot.on('message', async (msg) => {
       `💰 مبلغ: ${toPersianNumber(receiptData.amount)} تومان\n` +
       `━━━━━━━━━━━━━━━`;
 
-    await bot.sendPhoto(adminChatId, msg.photo[msg.photo.length - 1].file_id, {
+    await safePhoto(adminChatId, msg.photo[msg.photo.length - 1].file_id, {
       caption, parse_mode: 'HTML',
       reply_markup: { inline_keyboard: [
         [
@@ -277,7 +311,7 @@ bot.on('message', async (msg) => {
       ]},
     });
 
-    await bot.sendMessage(chatId,
+    await safeSend(chatId,
       `✅ رسید شما دریافت شد!\n\n` +
       `📦 سرویس: ${receiptData.serverName}\n` +
       `💰 مبلغ: ${toPersianNumber(receiptData.amount)} تومان\n\n` +
@@ -288,6 +322,8 @@ bot.on('message', async (msg) => {
     return;
   }
 
+  if (!text) return;
+
   // ─── Admin States ───
   if (isAdmin(userId)) {
     const st = adminStates.get(userId);
@@ -295,46 +331,46 @@ bot.on('message', async (msg) => {
     if (st?.mode === 'awaiting_channel_id') {
       const newChannel = text.trim();
       if (!newChannel.startsWith('@') && !newChannel.startsWith('https://t.me/')) {
-        return bot.sendMessage(chatId, '⚠️ فرمت صحیح: @channel_name یا https://t.me/channel_name');
+        return await safeSend(chatId, '⚠️ فرمت صحیح: @channel_name یا https://t.me/channel_name');
       }
       currentChannelUsername = newChannel.startsWith('@') ? newChannel : '@' + newChannel.split('/').pop();
       db.saveSetting('channel', currentChannelUsername);
       adminStates.set(userId, { mode: null });
-      return bot.sendMessage(chatId, `✅ کانال به <b>${currentChannelUsername}</b> تغییر کرد.`, { parse_mode: 'HTML', ...adminPanelKB() });
+      return await safeSend(chatId, `✅ کانال به <b>${currentChannelUsername}</b> تغییر کرد.`, { parse_mode: 'HTML', ...adminPanelKB() });
     }
 
     if (st?.mode === 'editing_price_20') {
       const price = Number(text);
-      if (!price || price <= 0) return bot.sendMessage(chatId, '⚠️ یک عدد صحیح وارد کنید.');
+      if (!price || price <= 0) return await safeSend(chatId, '⚠️ یک عدد صحیح وارد کنید.');
       db.saveSetting('price_20', price);
       adminStates.set(userId, { mode: null });
-      return bot.sendMessage(chatId, `✅ قیمت ۲۰ گیگ: ${toPersianNumber(price)} تومان`, adminPanelKB());
+      return await safeSend(chatId, `✅ قیمت ۲۰ گیگ: ${toPersianNumber(price)} تومان`, adminPanelKB());
     }
     if (st?.mode === 'editing_price_10') {
       const price = Number(text);
-      if (!price || price <= 0) return bot.sendMessage(chatId, '⚠️ یک عدد صحیح وارد کنید.');
+      if (!price || price <= 0) return await safeSend(chatId, '⚠️ یک عدد صحیح وارد کنید.');
       db.saveSetting('price_10', price);
       adminStates.set(userId, { mode: null });
-      return bot.sendMessage(chatId, `✅ قیمت ۱۰ گیگ: ${toPersianNumber(price)} تومان`, adminPanelKB());
+      return await safeSend(chatId, `✅ قیمت ۱۰ گیگ: ${toPersianNumber(price)} تومان`, adminPanelKB());
     }
     if (st?.mode === 'editing_price_5') {
       const price = Number(text);
-      if (!price || price <= 0) return bot.sendMessage(chatId, '⚠️ یک عدد صحیح وارد کنید.');
+      if (!price || price <= 0) return await safeSend(chatId, '⚠️ یک عدد صحیح وارد کنید.');
       db.saveSetting('price_5', price);
       adminStates.set(userId, { mode: null });
-      return bot.sendMessage(chatId, `✅ قیمت ۵ گیگ: ${toPersianNumber(price)} تومان`, adminPanelKB());
+      return await safeSend(chatId, `✅ قیمت ۵ گیگ: ${toPersianNumber(price)} تومان`, adminPanelKB());
     }
     if (st?.mode === 'editing_card') {
       const card = text.trim();
       db.saveSetting('card', card);
       adminStates.set(userId, { mode: null });
-      return bot.sendMessage(chatId, `✅ شماره کارت: ${card}`, adminPanelKB());
+      return await safeSend(chatId, `✅ شماره کارت: ${card}`, adminPanelKB());
     }
   }
 
   // ─── Main Menu ───
   if (text === '🛒 خرید سرویس') {
-    return bot.sendMessage(chatId,
+    return await safeSend(chatId,
       `⚡ <b>خرید سرویس VPN</b>\n\n` +
       `از بین سرورهای زیر انتخاب کنید:`,
       { parse_mode: 'HTML', ...serverSelectionKB() }
@@ -344,7 +380,7 @@ bot.on('message', async (msg) => {
   if (text === '📦 سرویس‌های من') {
     const invoice = userInvoices.get(userId);
     if (invoice) {
-      return bot.sendMessage(chatId,
+      return await safeSend(chatId,
         `📦 <b>سرویس در حال پردازش</b>\n\n` +
         `🖥 سرور: ${invoice.serverName}\n` +
         `📦 حجم: ${invoice.volumeLabel}\n` +
@@ -379,7 +415,7 @@ bot.on('message', async (msg) => {
         }
       } catch {}
     }
-    return bot.sendMessage(chatId,
+    return await safeSend(chatId,
       `📦 <b>سرویس‌های من</b>\n\n` +
       (marzbanInfo || '❌ سرویس فعالی ندارید.\n\nبرای خرید از منوی «🛒 خرید سرویس» استفاده کنید.'),
       { parse_mode: 'HTML', ...mainMenuKB(userId) }
@@ -391,7 +427,7 @@ bot.on('message', async (msg) => {
     const orderCount = userInvoices.has(userId) ? 1 : 0;
     const pending = awaitingReceipts.has(userId) ? 1 : 0;
 
-    return bot.sendMessage(chatId,
+    return await safeSend(chatId,
       `⚡ <b>حساب کاربری</b>\n` +
       `━━━━━━━━━━━━━━━━━━\n\n` +
       `👤 <b>نام:</b> ${msg.from.first_name || '-'}\n` +
@@ -413,7 +449,7 @@ bot.on('message', async (msg) => {
   }
 
   if (text === '🤝 دعوت دوستان') {
-    return bot.sendMessage(chatId,
+    return await safeSend(chatId,
       `🤝 <b>دعوت از دوستان</b>\n\n` +
       `با دعوت از دوستان خود می‌تونید از مزایای ویژه بهره‌مند بشید.\n\n` +
       `🔗 لینک دعوت شما:\n` +
@@ -424,7 +460,7 @@ bot.on('message', async (msg) => {
   }
 
   if (text === '📜 قوانین') {
-    return bot.sendMessage(chatId,
+    return await safeSend(chatId,
       `📜 <b>قوانین و مقررات VorteX VPN</b>\n\n` +
       `۱. 🚫 استفاده از سرویس برای اعمال غیرقانونی ممنوع است\n` +
       `۲. 📵 اشتراک‌گذاری کانفیگ با دیگران ممنوع است\n` +
@@ -438,12 +474,15 @@ bot.on('message', async (msg) => {
   }
 
   if (text === '🛠 پنل مدیریت' && isAdmin(userId)) {
-    return bot.sendMessage(chatId,
+    return await safeSend(chatId,
       `🛠 <b>پنل مدیریت</b>\n\n` +
       `از بخش‌های زیر می‌تونید ربات رو مدیریت کنید:`,
       { parse_mode: 'HTML', ...adminPanelKB() }
     );
   }
+
+  } catch (e) { console.error('Message handler error:', e.message); }
+  finally { unmarkProcessing(userId); }
 });
 
 // ═══════════════════════════════════════════
@@ -454,43 +493,47 @@ bot.on('callback_query', async (query) => {
   const chatId = query.message?.chat.id;
   const data = query.data;
   if (!chatId || !data) return;
+  if (isProcessing(userId)) return;
+  markProcessing(userId);
+
+  try {
 
   // ─── Membership Check ───
   if (data === 'check_membership') {
     const isMember = await isUserChannelMember(userId);
     if (isMember) {
-      await bot.answerCallbackQuery(query.id, { text: '✅ عضویت تأیید شد!' });
-      return bot.sendMessage(chatId,
+      await safeAnswer(query.id, { text: '✅ عضویت تأیید شد!' });
+      return await safeSend(chatId,
         `⚡ <b>VorteX VPN</b>\n\n` +
         `عضویتت تأیید شد ✅\n\n` +
         `حالا می‌تونی از ربات استفاده کنی! 👇`,
         { parse_mode: 'HTML', ...mainMenuKB(userId) }
       );
     } else {
-      return bot.answerCallbackQuery(query.id, { text: '❌ هنوز عضو کانال نشدید!', show_alert: true });
+      return safeAnswer(query.id, { text: '❌ هنوز عضو کانال نشدید!', show_alert: true });
     }
   }
 
   // ─── Back Navigation ───
   if (data === 'back:menu') {
-    await bot.answerCallbackQuery(query.id);
-    return bot.editMessageText(
+    await safeAnswer(query.id);
+    return await safeEdit(
       `⚡ <b>VorteX VPN</b>\n\n` + `از منوی پایین استفاده کن 👇`,
       { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', ...mainMenuKB(userId) }
     );
   }
 
   if (data === 'back:servers') {
-    await bot.answerCallbackQuery(query.id);
-    return bot.editMessageText(
+    await safeAnswer(query.id);
+    return await safeEdit(
       `⚡ <b>خرید سرویس VPN</b>\n\n` + `از بین سرورهای زیر انتخاب کنید:`,
       { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', ...serverSelectionKB() }
     );
   }
 
   if (data === 'back:volumes') {
-    await bot.answerCallbackQuery(query.id);
-    return bot.editMessageText(
+    await safeAnswer(query.id);
+    return await safeEdit(
       `⚡ <b>انتخاب حجم</b>\n\n` + `حجم مورد نظر رو انتخاب کنید:`,
       { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', ...volumeKB() }
     );
@@ -498,15 +541,15 @@ bot.on('callback_query', async (query) => {
 
   // ─── Buy Flow ───
   if (data === 'srv:all') {
-    await bot.answerCallbackQuery(query.id);
-    return bot.editMessageText(
+    await safeAnswer(query.id);
+    return await safeEdit(
       `⚡ <b>انتخاب حجم</b>\n\n` + `حجم اینترنت مورد نظرتون رو انتخاب کنید:`,
       { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', ...volumeKB() }
     );
   }
 
   if (data.startsWith('vol:')) {
-    await bot.answerCallbackQuery(query.id);
+    await safeAnswer(query.id);
     const vol = data.split(':')[1];
     const volLabel = vol === '20' ? '۲۰ گیگ' : vol === '10' ? '۱۰ گیگ' : '۵ گیگ';
     const price = vol === '20' ? ALL_SERVERS_PRICE_20 : vol === '10' ? ALL_SERVERS_PRICE_10 : ALL_SERVERS_PRICE_5;
@@ -516,7 +559,7 @@ bot.on('callback_query', async (query) => {
       lastInvoiceMessageId: null, stage: 'volume_select',
     });
     db.saveInvoice(userId, userInvoices.get(userId));
-    return bot.editMessageText(
+    return await safeEdit(
       `⚡ <b>انتخاب مدت زمان</b>\n\n` +
       `📦 حجم: ${volLabel}\n` +
       `💰 قیمت: ${toPersianNumber(price)} تومان\n\n` +
@@ -526,7 +569,7 @@ bot.on('callback_query', async (query) => {
   }
 
   if (data.startsWith('time:')) {
-    await bot.answerCallbackQuery(query.id);
+    await safeAnswer(query.id);
     const time = data.split(':')[1];
     const timeLabel = time === 'unlimited' ? 'نامحدود' : time === '30' ? '۳۰ روزه' : '۱۵ روزه';
     const inv = userInvoices.get(userId);
@@ -551,14 +594,14 @@ bot.on('callback_query', async (query) => {
       `<code>${CARD_NUMBER}</code>\n\n` +
       `⚠️ پس از پرداخت، روی «تأیید و پرداخت» بزنید و رسید رو بفرستید.`;
 
-    return bot.editMessageText(invoiceText, {
+    return await safeEdit(invoiceText, {
       chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', ...confirmKB()
     });
   }
 
   // ─── Invoice Confirm/Cancel ───
   if (data === 'inv:confirm') {
-    await bot.answerCallbackQuery(query.id);
+    await safeAnswer(query.id);
     const inv = userInvoices.get(userId);
     if (!inv) return;
     inv.stage = 'receipt_sent';
@@ -568,7 +611,7 @@ bot.on('callback_query', async (query) => {
     awaitingReceipts.set(userId, { serverName: inv.serverName, amount: inv.amount });
     db.saveAwaitingReceipt(userId, awaitingReceipts.get(userId));
 
-    return bot.editMessageText(
+    return await safeEdit(
       `⚡ <b>ارسال رسید پرداخت</b>\n` +
       `━━━━━━━━━━━━━━━━━━\n\n` +
       `💳 شماره کارت:\n` +
@@ -582,10 +625,10 @@ bot.on('callback_query', async (query) => {
   }
 
   if (data === 'inv:cancel') {
-    await bot.answerCallbackQuery(query.id, { text: '❌ خرید لغو شد' });
+    await safeAnswer(query.id, { text: '❌ خرید لغو شد' });
     userInvoices.delete(userId);
     db.removeInvoice(userId);
-    return bot.editMessageText(
+    return await safeEdit(
       `❌ <b>خرید لغو شد</b>\n\n` + `هر وقت خواستی دوباره شروع کن 👇`,
       { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML', ...mainMenuKB(userId) }
     );
@@ -593,7 +636,7 @@ bot.on('callback_query', async (query) => {
 
   // ─── Account ───
   if (data === 'acc:orders') {
-    await bot.answerCallbackQuery(query.id);
+    await safeAnswer(query.id);
     const inv = userInvoices.get(userId);
     let info = inv
       ? `📦 <b>سفارش اخیر:</b>\n\n` +
@@ -603,12 +646,12 @@ bot.on('callback_query', async (query) => {
         `💰 مبلغ: ${inv.amount ? toPersianNumber(inv.amount) + ' تومان' : '—'}\n` +
         `📋 وضعیت: ${inv.stage === 'receipt_sent' ? '⏳ در انتظار تأیید' : '📝 در حال تکمیل'}`
       : '📭 سفارش ثبت‌شده‌ای ندارید.';
-    return bot.sendMessage(chatId, info, { parse_mode: 'HTML', ...mainMenuKB(userId) });
+    return await safeSend(chatId, info, { parse_mode: 'HTML', ...mainMenuKB(userId) });
   }
 
   if (data === 'acc:referral') {
-    await bot.answerCallbackQuery(query.id);
-    return bot.sendMessage(chatId,
+    await safeAnswer(query.id);
+    return await safeSend(chatId,
       `🎟 <b>کد دعوت شما:</b>\n\n` +
       `<code>VX-${userId}</code>\n\n` +
       `این کد رو با دوستانتون به اشتراک بذارید.`,
@@ -619,9 +662,9 @@ bot.on('callback_query', async (query) => {
   // ─── Admin Panel ───
   if (isAdmin(userId)) {
     if (data === 'adm:channel') {
-      await bot.answerCallbackQuery(query.id);
+      await safeAnswer(query.id);
       adminStates.set(userId, { mode: 'awaiting_channel_id' });
-      return bot.sendMessage(chatId,
+      return await safeSend(chatId,
         `📡 <b>تنظیم کانال</b>\n\n` +
         `آیدی کانال جدید رو بفرستید:\n` +
         `فرمت: <code>@channel_name</code>`,
@@ -630,10 +673,10 @@ bot.on('callback_query', async (query) => {
     }
 
     if (data === 'adm:membership') {
-      await bot.answerCallbackQuery(query.id);
+      await safeAnswer(query.id);
       membershipRequired = !membershipRequired;
       db.saveSetting('membership', String(membershipRequired));
-      return bot.sendMessage(chatId,
+      return await safeSend(chatId,
         `👥 <b>عضویت اجباری</b>\n\n` +
         `وضعیت فعلی: ${membershipRequired ? '✅ فعال' : '❌ غیرفعال'}\n\n` +
         `برای تغییر دوباره دکمه رو بزنید.`,
@@ -642,9 +685,9 @@ bot.on('callback_query', async (query) => {
     }
 
     if (data === 'adm:prices') {
-      await bot.answerCallbackQuery(query.id);
+      await safeAnswer(query.id);
       adminStates.set(userId, { mode: 'editing_price_20' });
-      return bot.sendMessage(chatId,
+      return await safeSend(chatId,
         `💰 <b>تنظیم قیمت‌ها</b>\n\n` +
         `قیمت ۲۰ گیگ (تومان) رو وارد کنید:\n` +
         `(قیمت فعلی: ${toPersianNumber(ALL_SERVERS_PRICE_20)} ت)`,
@@ -653,9 +696,9 @@ bot.on('callback_query', async (query) => {
     }
 
     if (data === 'adm:card') {
-      await bot.answerCallbackQuery(query.id);
+      await safeAnswer(query.id);
       adminStates.set(userId, { mode: 'editing_card' });
-      return bot.sendMessage(chatId,
+      return await safeSend(chatId,
         `💳 <b>شماره کارت</b>\n\n` +
         `شماره کارت جدید رو بفرستید:`,
         { parse_mode: 'HTML', ...backKB() }
@@ -663,9 +706,9 @@ bot.on('callback_query', async (query) => {
     }
 
     if (data === 'adm:users') {
-      await bot.answerCallbackQuery(query.id);
+      await safeAnswer(query.id);
       const userCount = seenUsers.size;
-      return bot.sendMessage(chatId,
+      return await safeSend(chatId,
         `📋 <b>لیست کاربران</b>\n\n` +
         `تعداد کل: ${userCount} نفر\n\n` +
         `آخرین کاربران:\n` +
@@ -677,7 +720,7 @@ bot.on('callback_query', async (query) => {
     // ─── Admin Approve/Reject ───
     if (data.startsWith('adm:approve:')) {
       const targetUserId = Number(data.split(':')[2]);
-      await bot.answerCallbackQuery(query.id, { text: '✅ تأیید شد' });
+      await safeAnswer(query.id, { text: '✅ تأیید شد' });
 
       const inv = userInvoices.get(targetUserId) || awaitingReceipts.get(targetUserId) || { serverName: 'نامشخص', amount: 0, volumeLabel: '۲۰ گیگ', timeLabel: 'نامحدود', userName: 'کاربر' };
 
@@ -699,12 +742,12 @@ bot.on('callback_query', async (query) => {
       }
 
       try {
-        await bot.sendMessage(targetUserId, replyToUser, { parse_mode: 'HTML', ...mainMenuKB(targetUserId) });
+        await safeSend(targetUserId, replyToUser, { parse_mode: 'HTML', ...mainMenuKB(targetUserId) });
       } catch {}
 
       // Update admin message
       try {
-        await bot.editMessageText(
+        await safeEdit(
           `✅ <b>تأیید شد</b>\n\n` +
           `👤 کاربر: <code>${targetUserId}</code>\n` +
           `💰 مبلغ: ${toPersianNumber(inv.amount)} تومان\n` +
@@ -718,12 +761,12 @@ bot.on('callback_query', async (query) => {
 
     if (data.startsWith('adm:reject:')) {
       const targetUserId = Number(data.split(':')[2]);
-      await bot.answerCallbackQuery(query.id, { text: '❌ رد شد' });
+      await safeAnswer(query.id, { text: '❌ رد شد' });
       try {
-        await bot.sendMessage(targetUserId, `❌ <b>پرداخت شما رد شد.</b>\n\nاگر فکر می‌کنید اشتباهه با پشتیبانی تماس بگیرید.`, { parse_mode: 'HTML', ...mainMenuKB(targetUserId) });
+        await safeSend(targetUserId, `❌ <b>پرداخت شما رد شد.</b>\n\nاگر فکر می‌کنید اشتباهه با پشتیبانی تماس بگیرید.`, { parse_mode: 'HTML', ...mainMenuKB(targetUserId) });
       } catch {}
       try {
-        await bot.editMessageText(
+        await safeEdit(
           `❌ <b>رد شد</b>\n\n👤 کاربر: <code>${targetUserId}</code>`,
           { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'HTML' }
         );
@@ -731,6 +774,9 @@ bot.on('callback_query', async (query) => {
       return;
     }
   }
+
+  } catch (e) { console.error('Callback error:', e.message); }
+  finally { unmarkProcessing(userId); }
 });
 
 // ═══════════════════════════════════════════
